@@ -2,6 +2,23 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v1.2.0] - 2026-10-07
+
+### 新增
+- **身份领取（免领取码）**：Kiosk 领取改为「输 7 位学号 + 姓名」→ 列出该生可领取 / 审核中的物品 → 确认 → 拍照存证出库，全程无需输入 6 位码
+- 新增接口 POST /api/kiosk/lookup-claims：学号 + 姓名双匹配，返回待领取项与状态（**响应中不含任何码**）
+- Kiosk 空闲屏新增入口「Already approved? Collect it with your student ID」
+
+### 变更
+- POST /api/kiosk/fulfill 支持身份通道（claim_id + student_id + name，服务端双重校验）；**原领取码通道保留**，双通道并存
+- 出库尾段抽为 completeHandout()，两条通道共用乐观锁 + 积分结算，避免逻辑分叉
+- 认领当场自动通过后**直接进入出库确认**（不再跳输码页）；冷冻期 / 转人工的提示改为「届时凭学号与姓名到服务台领取」
+- 手机端认领券文案同步：领取码标签改为「参考编号」，引导语改为到服务台报学号与姓名
+
+### 修复
+- src/api/claims.js 认领响应补回 id 字段（身份领取需据其定位认领单）
+- Kiosk 拍照存证浮层 .k-evidence 的 display:flex 覆盖了 hidden 属性，导致浮层从进入领取页起就常驻遮屏（补 .k-evidence[hidden]{display:none}，与 .k-rep-pane 同类问题）
+
 ## [v1.1.0] - 2026-10-07
 
 ### 修复

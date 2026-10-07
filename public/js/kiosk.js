@@ -115,18 +115,9 @@ function makePad(padSel, dispSel, submitSel) {
 /* ---------- 流程：凭证投递确认 ---------- */
 const scanPad = makePad('#scanPad', '#scanCode', '#scanSubmit');
 $('#scanSubmit').addEventListener('click', () => submitVoucher(scanPad.get()));
-let scanSubmitMode = 'voucher';
-function openScan(mode) {
-  go('scan');
-  $('#scanTitle').textContent = mode === 'pickup' ? t('k_pickup_title') : t('k_drop_title');
-  scanPad.clear();
-  scanPad.onSubmit((code) => (mode === 'pickup' ? pickupFlow(code) : submitVoucher(code)));
-  scanSubmitMode = mode;
-  startCam('#scanCam').then((ok) => { $('#scanCamHint').hidden = ok; if (ok) startScan('#scanCam', (code) => (mode === 'pickup' ? pickupFlow(code) : submitVoucher(code))); });
-}
 function openVoucher() {
   go('scan'); $('#scanTitle').textContent = t('k_drop_title');
-  scanSubmitMode = 'voucher'; scanPad.clear();
+  scanPad.clear();
   scanPad.onSubmit(submitVoucher);
   startCam('#scanCam').then((ok) => { $('#scanCamHint').hidden = ok; if (ok) startScan('#scanCam', submitVoucher); });
 }
@@ -289,48 +280,85 @@ function selectItem(id, cardEl) {
 async function submitClaim() {
   const answer = $('#claimAnswer').value.trim();
   const sid = $('#claimSid').value.trim();
+  const nm = $('#claimName').value.trim();
   if (!answer || !/^[0-9]{7}$/.test(sid) || !$('#claimName').value.trim() || !$('#claimClass').value.trim()) { toast(t('k_toast_fill')); return; }
   const r = await api('/claims', { method: 'POST', headers: JSONH, body: JSON.stringify({
-    code: findSel.code, student_id: sid, name: $('#claimName').value.trim(),
+    code: findSel.code, student_id: sid, name: nm,
     class: $('#claimClass').value.trim(), verify_answer: answer }) });
   if (r.status === 200 && r.body.ok) {
-    if (r.body.pickup_code) { toast(t('k_claim_received')); pickupEntry(r.body.pickup_code); }
+    if (r.body.pickup_code) { toast(t('k_claim_received')); handoutEntry(r.body.id, sid, nm, findSel); }
     else if (r.body.status === 'pending') { $('#doneMsg').textContent = t('k_claim_received_h'); $('#doneSub').textContent = t('k_claim_freeze_sub'); go('done'); }
     else { $('#doneMsg').textContent = t('k_claim_manual_h'); $('#doneSub').textContent = t('k_claim_manual_sub'); go('done'); }
   } else { toast(r.body.error === 'ITEM_NOT_CLAIMABLE' ? t('k_toast_not_claimable') : t('k_toast_claim_fail')); }
 }
 
-/* ---------- 流程：核销出库 ---------- */
-const pickPad = makePad('#pickPad', '#pickCode', '#pickVerify');
-$('#pickVerify').addEventListener('click', () => pickupFlow(pickPad.get()));
-function pickupEntry(code) {
-  go('pickup'); pickPad.set(code);
-  pickupFlow(code);
+/* ---------- 流程：身份领取（学号 + 姓名，无需领取码） ---------- */
+let pickClaims = [], pickCtx = null;
+function openPickup() {
+  go('pickup');
+  pickClaims = []; pickCtx = null;
+  $('#pickSid').value = ''; $('#pickName').value = '';
+  $('#pickInfo').innerHTML = '<p class="k-hint">' + t('k_pick_start') + '</p>';
 }
-async function pickupFlow(code) {
-  const r = await api('/kiosk/verify-pickup', { method: 'POST', headers: JSONH, body: JSON.stringify({ pickup_code: code }) });
-  if (r.status !== 200 || !r.body.ok) { toast(r.status === 410 ? t('k_toast_pickup_expired') : t('k_toast_pickup_bad')); pickPad.clear(); return; }
-  const c = r.body.claim;
+$('#pickLookup').addEventListener('click', () => lookupClaimList());
+$('#pickName').addEventListener('keydown', (e) => { if (e.key === 'Enter') lookupClaimList(); });
+async function lookupClaimList() {
+  const sid = $('#pickSid').value.trim();
+  const name = $('#pickName').value.trim();
+  if (!/^[0-9]{7}$/.test(sid)) { toast(t('k_toast_bad_sid')); return; }
+  if (!name) { toast(t('k_toast_need_name')); return; }
+  const r = await api('/kiosk/lookup-claims', { method: 'POST', headers: JSONH, body: JSON.stringify({ student_id: sid, name }) });
+  if (!r.body.ok) {
+    if (r.body.error === 'NAME_MISMATCH' || r.body.error === 'IDENTITY_NOT_FOUND') toast(t('k_toast_name_mismatch'));
+    else toast(t('k_toast_lookup_fail'));
+    return;
+  }
+  pickClaims = r.body.claims || [];
+  pickCtx = null;
+  if (!pickClaims.length) { $('#pickInfo').innerHTML = '<p class="k-hint">' + t('k_pick_none') + '</p>'; return; }
+  $('#pickInfo').innerHTML = '<div class="k-label">' + t('k_pick_found') + '</div>' + pickClaims.map((c) => {
+    const label = c.claimable ? t('k_pick_ready') : (c.expired ? t('k_pick_expired') : t('k_pick_wait'));
+    return '<button class="k-find-card' + (c.claimable ? '' : ' is-dim') + '" data-cid="' + c.claim_id + '" type="button"' + (c.claimable ? '' : ' disabled') + '>'
+      + '<b>' + esc(c.title) + '</b>'
+      + '<span class="meta">' + t('k_slot') + ' ' + String(c.slot_no ?? 0).padStart(2, '0') + ' · ' + esc(label) + '</span>'
+      + '</button>';
+  }).join('');
+  $$('#pickInfo .k-find-card:not([disabled])').forEach((b) => b.addEventListener('click', () => selectClaim(Number(b.dataset.cid), sid, name)));
+}
+function selectClaim(cid, sid, name) {
+  const c = pickClaims.find((x) => x.claim_id === cid);
+  if (!c) return;
+  pickCtx = { claim_id: cid, student_id: sid, name };
+  renderHandout(c);
+}
+function renderHandout(c) {
   $('#pickInfo').innerHTML =
     '<div class="k-label">' + t('k_pick_info_h') + '</div>'
     + '<h3 style="font:900 22px var(--font-ui)">' + esc(c.title) + '</h3>'
-    + '<p class="k-hint">' + esc(c.location) + ' · ' + esc(String(c.found_at).slice(5, 10)) + '</p>'
+    + '<p class="k-hint">' + esc(c.location ?? '') + '</p>'
     + '<span class="slot-tag mono" style="font-size:16px">' + t('k_slot') + ' ' + String(c.slot_no ?? 0).padStart(2, '0') + '</span>'
     + '<button class="k-btn k-primary k-wide" id="pickOut" style="margin-top:auto" type="button">' + t('k_pickup_out') + '</button>'
     + '<p class="k-hint">' + t('k_pickup_out_note') + '</p>';
-  $('#pickOut').addEventListener('click', () => doFulfill(code));
-  $('#evidenceWrap').hidden = false;
+  $('#pickOut').addEventListener('click', () => doFulfill());
 }
-async function doFulfill(code) {
+function handoutEntry(claimId, sid, name, item) {
+  go('pickup');
+  pickClaims = []; pickCtx = { claim_id: claimId, student_id: sid, name };
+  $('#pickSid').value = sid; $('#pickName').value = name;
+  renderHandout({ title: item.title, location: item.location, slot_no: item.slot_no });
+}
+async function doFulfill() {
+  if (!pickCtx) return;
   const ok = await startCam('#pickCam');
   if (!ok) { toast(t('k_toast_no_cam')); return; }
   $('#evidenceWrap').hidden = false;
-  $('#pickShot').onclick = null;
-  $('#pickShot').addEventListener('click', async () => {
+  $('#pickShot').onclick = async () => {
     const blob = await grabBlob('#pickCam');
     if (!blob) { toast(t('k_toast_capture_fail')); return; }
     const fd = new FormData();
-    fd.set('pickup_code', code);
+    fd.set('claim_id', String(pickCtx.claim_id));
+    fd.set('student_id', pickCtx.student_id);
+    fd.set('name', pickCtx.name);
     fd.set('photo', new File([blob], 'evidence.jpg', { type: 'image/jpeg' }));
     const r = await api('/kiosk/fulfill', { method: 'POST', body: fd });
     if (r.status === 200 && r.body.ok) {
@@ -341,12 +369,15 @@ async function doFulfill(code) {
         : t('k_points_capped_note');
       go('done');
     } else if (r.status === 409) { toast(t('k_toast_already')); $('#evidenceWrap').hidden = true; }
+    else if (r.status === 403) { toast(t('k_toast_identity_mismatch')); $('#evidenceWrap').hidden = true; }
+    else if (r.status === 410) { toast(t('k_toast_pickup_expired')); $('#evidenceWrap').hidden = true; }
     else { toast(r.body.error === 'TOO_LARGE' ? t('k_toast_photo_big') : t('k_toast_fulfill_fail')); }
-  }, { once: true });
+  };
   $('#pickCancel').onclick = () => { $('#evidenceWrap').hidden = true; };
 }
 
 /* ---------- 启动 ---------- */
 $('#btnVoucher').addEventListener('click', openVoucher);
+$('#btnPickup').addEventListener('click', openPickup);
 applyStaticTexts();
 netPaint();

@@ -25,6 +25,7 @@
         <span class="k-arrow">→</span>
       </button>
       <button class="k-voucher" id="btnVoucher" type="button" data-i18n="k_voucher_cta">Have a voucher code on your phone? Confirm drop-off →</button>
+      <button class="k-voucher" id="btnPickup" type="button" data-i18n="k_pickup_cta">Already approved? Collect it with your student ID →</button>
     </div>
     <aside class="k-side">
       <div class="k-side-h" data-i18n="k_how_h">How it works</div>
@@ -129,15 +130,16 @@
 
 <!-- ⑥ Pickup handout -->
 <section class="k-state" data-state="pickup">
-  <header class="k-top"><button class="k-back" data-go="find" data-i18n="k_back" type="button">← Back</button><span class="k-title" data-i18n="k_pickup_title">Pickup handout</span><span class="mono k-step">PICKUP</span></header>
+  <header class="k-top"><button class="k-back" data-go="idle" data-i18n="k_back" type="button">← Back</button><span class="k-title" data-i18n="k_pickup_title">Pickup handout</span><span class="mono k-step">PICKUP</span></header>
   <div class="k-scan-grid">
     <div class="k-keypad-wrap">
-      <div class="k-label" data-i18n="k_pickup_label">Enter the 6-digit pickup code (on the claim voucher)</div>
-      <div class="k-code-display mono" id="pickCode">······</div>
-      <div class="k-keypad" id="pickPad"></div>
-      <button class="k-btn k-primary" id="pickVerify" disabled data-i18n="k_pickup_verify" type="button">Verify pickup code</button>
+      <div class="k-label" data-i18n="k_pick_id_label">Your student ID and name</div>
+      <input class="k-input mono k-biginput" id="pickSid" inputmode="numeric" maxlength="7" data-i18n-ph="k_sid_ph" placeholder="7 digits">
+      <input class="k-input" id="pickName" data-i18n-ph="k_name_ph" placeholder="Name" style="margin-top:10px">
+      <button class="k-btn k-primary k-wide" id="pickLookup" data-i18n="k_pick_lookup" type="button">Find my item</button>
+      <p class="k-hint" data-i18n="k_pick_lookup_hint">Items approved for you appear on the right.</p>
     </div>
-    <aside class="k-pick-info" id="pickInfo"><p class="k-hint" data-i18n="k_pickup_hint">After verification, confirm the handout here</p></aside>
+    <aside class="k-pick-info" id="pickInfo"><p class="k-hint" data-i18n="k_pick_start">Enter your details to find your item</p></aside>
   </div>
   <div class="k-evidence" id="evidenceWrap" hidden>
     <video id="pickCam" autoplay playsinline muted></video>

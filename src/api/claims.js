@@ -42,7 +42,7 @@ export async function claims(db, env, req) {
   if (status === 'pending') {  // 锁定物品为认领中（乐观锁）
     await db.prepare("UPDATE items SET status='claim_pending' WHERE id=? AND status='in_stock'").bind(item.id).run();
   }
-  const row = await db.prepare("SELECT status, pickup_code, pickup_expires_at FROM claims WHERE id=?").bind(r.meta.last_row_id ?? 1).first();
+  const row = await db.prepare("SELECT id, status, pickup_code, pickup_expires_at FROM claims WHERE id=?").bind(r.meta.last_row_id ?? 1).first();
   return json({ ok: true, ...row });
 }
 // 冷冻期结算：pending → 若该物品仅此一份申请且核验已过 → approved 发码；≥2 份 → 全部 in_review

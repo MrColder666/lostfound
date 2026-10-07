@@ -145,6 +145,7 @@ body.k-body {
 /* 存证拍照浮层 + 格位牌（kiosk 无 app.css，需自带） */
 .k-evidence { position: fixed; inset: 0; z-index: 60; background: rgba(20,27,38,.92);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+.k-evidence[hidden] { display: none; }
 .k-evidence video { width: min(70vw, 720px); border-radius: 12px; background: #000; }
 .slot-tag { font: 700 12px var(--font-mono); color: var(--color-navy); background: var(--color-cyan-soft);
   border: 1px solid var(--color-rule); border-radius: 4px; padding: 2px 8px; }
