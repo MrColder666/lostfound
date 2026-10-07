@@ -5,7 +5,7 @@ import { fakeDb } from './fake-db.js';
 import { listItems, getItem } from '../src/api/items.js';
 import { report } from '../src/api/report.js';
 const SCHEMA = readFileSync('schema.sql', 'utf8');
-const env = { SLOT_COUNT: '12', FREEZE_MINUTES: '60', DROP_TTL_MINUTES: '15', PICKUP_TTL_HOURS: '48' };
+const env = { SLOT_COUNT: '12', FREEZE_MINUTES: '60', DROP_TTL_MINUTES: '15', PICKUP_TTL_HOURS: '48', ADMIN_TOKEN: 'T0KEN' };  // T11：补 ADMIN_TOKEN（简报 env 缺失）
 async function seed(db) {  // 公共种子：一个身份
   await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031622','王小明','7(3)')").run();
 }
@@ -176,4 +176,29 @@ test('兑换：余额不足 402；成功则扣分+订单 pending', async () => {
   assert.equal(ok.status, 200);
   const poor = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1 }));  // 余额已扣 40，剩 10 < 40
   assert.equal(poor.status, 402);
+});
+
+// ---- 任务 11：admin + worker ----
+import { admin } from '../src/api/admin.js';
+const adminReq = (path, token = 'T0KEN') => new Request('https://x' + path, { headers: { 'X-Admin-Token': token } });
+test('admin：无 token → 401；有 token → 复核队列', async () => {
+  const db = fakeDb(SCHEMA);
+  assert.equal((await admin(db, env, adminReq('/api/admin/queue'), '')).status, 401);
+  // 修正：queue 查询 INNER JOIN identities，认领人身份行必须存在（真实流程 claims() 会先 upsert）
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','李思远','7(3)')").run();
+  await db.prepare("INSERT INTO claims(id,item_id,claimant_id,status) VALUES (1,1,'9031623','in_review')").run();
+  await db.prepare("INSERT INTO items(id,code,title,category,location,registered_by,registered_via,found_at,status) VALUES (1,'LF-1','保温杯','clothing','x','9031622','phone','2026-10-07T00:00:00Z','in_stock')").run();  // 修正：补齐 items 各 NOT NULL 列
+  const res = await admin(db, env, adminReq('/api/admin/queue'), 'T0KEN');
+  const body = await res.json();
+  assert.equal(body.ok, true); assert.equal(body.queue[0].claim_id, 1);
+});
+test('admin：复核通过 → 发领取码（写审计）', async () => {
+  const db = fakeDb(SCHEMA);
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','李思远','7(3)')").run();
+  await db.prepare("INSERT INTO claims(id,item_id,claimant_id,status) VALUES (1,1,'9031623','in_review')").run();
+  const res = await admin(db, env, new Request('https://x/api/admin/review', { method: 'POST', headers: { 'X-Admin-Token': 'T0KEN', 'content-type': 'application/json' }, body: JSON.stringify({ claim_id: 1, decision: 'approve' }) }), 'T0KEN');
+  assert.equal((await res.json()).ok, true);
+  const c = await db.prepare('SELECT status, pickup_code FROM claims WHERE id=1').first();
+  assert.equal(c.status, 'approved'); assert.match(c.pickup_code, /^\d{6}$/);
+  assert.equal((await db.prepare("SELECT COUNT(*) c FROM admin_audit").first()).c, 1);
 });
