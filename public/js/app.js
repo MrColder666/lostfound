@@ -1,5 +1,5 @@
 // public/js/app.js —— hash 路由四视图；路由/字段/错误码以 src/api/*.js + src/worker.js 为准
-import { t, setLang, getLang } from './i18n-inline.js';
+import { t, getLang } from './i18n-inline.js';
 import { put as idbPut, all as idbAll, del as idbDel } from './idb.js';
 import { sanitize } from './canvas-image.js';
 
@@ -24,20 +24,13 @@ function router() {
   const qi = h.indexOf('?');
   const path = qi < 0 ? h : h.slice(0, qi);
   const q = new URLSearchParams(qi < 0 ? '' : h.slice(qi + 1));
-  document.querySelectorAll('.tabbar [data-route]').forEach((b) =>
+  document.querySelectorAll('.tabbar [data-route], .gnav [data-route]').forEach((b) =>
     b.setAttribute('aria-pressed', String(b.dataset.route === path)));
   if (path.startsWith('#/claim/')) return renderClaim(path.slice('#/claim/'.length));
   (routes[path] || renderHome)(q);
 }
 
 // —— i18n ——
-document.getElementById('langToggle').addEventListener('click', () => {
-  lang = lang === 'zh' ? 'en' : 'zh';
-  setLang(lang);
-  document.documentElement.lang = lang === 'en' ? 'en' : 'zh';
-  applyStaticTexts();
-  router();
-});
 function applyStaticTexts() {
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
 }
@@ -72,12 +65,27 @@ async function renderHome(q) {
            <input id="asideSid" inputmode="numeric" pattern="\\d{7}" maxlength="7"></label>
          <button class="btn btn-primary" id="asideGo">${t('home_aside_btn')}</button></div></aside></div>`
     : `<div class="card"><p class="empty">${t('empty_home')}</p></div>`;
-  $view.innerHTML = `
-    <div class="statbar"><span>${t('stat_total')}: ${items.length}</span><span>${t('stat_high')}: ${high}</span><span>${t('stat_cats')}: ${nCats}</span><span>${t('stat_note')}</span></div>
-    <div class="filters">${filters}</div>${list}`;
+  const hero = cat ? '' : '<section class="hero">'
+    + '<p class="hero-kicker">' + t('hero_kicker') + '</p>'
+    + '<h2 class="hero-title">' + t('hero_title') + '</h2>'
+    + '<p class="hero-sub">' + t('hero_sub') + '</p>'
+    + '<div class="hero-cta"><a class="btn btn-primary" href="#/report">' + t('cta_report') + '</a>'
+    + '<button class="btn btn-ghost" id="heroBrowse" type="button">' + t('cta_browse') + '</button></div>'
+    + '</section>';
+  const how = cat ? '' : '<section class="how"><h3 class="sec-h">' + t('how_h') + '</h3><div class="how-grid">'
+    + '<div class="how-card"><span class="how-n">1</span><b>' + t('how1_t') + '</b><p>' + t('how1_d') + '</p></div>'
+    + '<div class="how-card"><span class="how-n">2</span><b>' + t('how2_t') + '</b><p>' + t('how2_d') + '</p></div>'
+    + '<div class="how-card"><span class="how-n">3</span><b>' + t('how3_t') + '</b><p>' + t('how3_d') + '</p></div>'
+    + '</div></section>';
+  $view.innerHTML = (cat ? '' : hero + how)
+    + '<section id="board"><h3 class="sec-h">' + t('board_h') + '</h3>'
+    + '<div class="statbar"><span>' + t('stat_total') + ': ' + items.length + '</span><span>' + t('stat_high') + ': ' + high + '</span><span>' + t('stat_cats') + ': ' + nCats + '</span><span>' + t('stat_note') + '</span></div>'
+    + '<div class="filters">' + filters + '</div>' + list + '</section>';
   $view.querySelectorAll('.chip[data-cat]').forEach((b) => b.addEventListener('click', () => {
     location.hash = b.dataset.cat ? `#/?cat=${b.dataset.cat}` : '#/';
   }));
+  const browse = $view.querySelector('#heroBrowse');
+  if (browse) browse.addEventListener('click', () => { const el = $view.querySelector('#board'); if (el) el.scrollIntoView({ behavior: 'smooth' }); });
   const go = $view.querySelector('#asideGo');
   if (go) go.addEventListener('click', () => {
     const sid = $view.querySelector('#asideSid').value.trim();

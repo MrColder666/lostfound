@@ -1,19 +1,26 @@
-<!doctype html><html lang="zh"><head>
+<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>L&F 失物招领 · Lost & Found</title>
+<title>L&F · Lost & Found</title>
 <link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/fonts.css"><link rel="stylesheet" href="/css/app.css">
 </head><body>
-<header class="topbar">
-  <a class="logo" href="#/">L&F <small data-i18n="brand_sub">失物招领</small></a>
-  <span class="spacer"></span>
-  <button id="langToggle">中/EN</button>
-  <a id="pointsChip" href="#/points" data-i18n="points_chip">积分</a>
-</header>
-<main id="view"></main>
+<nav class="gnav" aria-label="Primary">
+  <div class="gnav-logo">L&amp;F</div>
+  <a class="gnav-item" data-route="#/" href="#/"><span class="gnav-ico">▦</span><span data-i18n="gnav_board">Board</span></a>
+  <a class="gnav-item" data-route="#/report" href="#/report"><span class="gnav-ico">＋</span><span data-i18n="gnav_report">Report</span></a>
+  <a class="gnav-item" data-route="#/points" href="#/points"><span class="gnav-ico">✦</span><span data-i18n="gnav_points">Points</span></a>
+</nav>
+<div class="shell">
+  <header class="topbar">
+    <a class="logo" href="#/">L&F <small data-i18n="brand_sub">Lost & Found</small></a>
+    <span class="spacer"></span>
+    <a id="pointsChip" href="#/points" data-i18n="points_chip">Points</a>
+  </header>
+  <main id="view"></main>
+</div>
 <nav class="tabbar">
-  <button data-route="#/" data-i18n="tab_home">公示</button>
-  <button class="fab" data-route="#/report" data-i18n="tab_report">＋登记</button>
-  <button data-route="#/points" data-i18n="tab_points">我的积分</button>
+  <button data-route="#/" data-i18n="tab_home" type="button">Board</button>
+  <button class="fab" data-route="#/report" data-i18n="tab_report" type="button">＋ Report</button>
+  <button data-route="#/points" data-i18n="tab_points" type="button">My Points</button>
 </nav>
 <script type="module" src="/js/app.js"></script>
 </body></html>

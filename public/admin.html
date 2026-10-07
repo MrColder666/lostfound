@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh"><head>
+<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>L&F · 后台</title>
+<title>L&F · Admin</title>
 <link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/fonts.css">
 <style>
 * { box-sizing: border-box; margin: 0; }
@@ -42,23 +42,23 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
 </head><body>
 <div class="wrap">
   <header class="bar">
-    <h1>L&amp;F 后台</h1><span class="mono">ADMIN</span><span class="spacer"></span>
-    <button id="logout" class="hidden">退出</button>
+    <h1>L&amp;F Admin</h1><span class="mono">STAFF CONSOLE</span><span class="spacer"></span>
+    <button id="logout" class="hidden">Sign out</button>
   </header>
 
   <div id="gate" class="card">
-    <h3>输入后台口令</h3>
-    <p class="muted">口令即访问凭证，只保存在本机浏览器（sessionStorage）</p>
+    <h3>Enter admin passphrase</h3>
+    <p class="muted">The passphrase is the access credential. It stays in this browser only (sessionStorage).</p>
     <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-    <button class="primary k-wide" id="enter" style="width:100%">进入</button>
+    <button class="primary" id="enter" style="width:100%">Enter</button>
     <p class="muted" id="gateErr" style="margin-top:8px"></p>
   </div>
 
   <div id="app" class="hidden">
     <div class="tabs">
-      <button data-tab="review" aria-pressed="true">复核队列</button>
-      <button data-tab="risk" aria-pressed="false">异常黄标</button>
-      <button data-tab="ops" aria-pressed="false">运营</button>
+      <button data-tab="review" aria-pressed="true">Review Queue</button>
+      <button data-tab="risk" aria-pressed="false">Risk Flags</button>
+      <button data-tab="ops" aria-pressed="false">Operations</button>
     </div>
 
     <div id="tab-review">
@@ -66,23 +66,23 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
     </div>
 
     <div id="tab-risk" class="hidden">
-      <div class="card"><h3>未处理黄标</h3><div id="flags"></div></div>
+      <div class="card"><h3>Unresolved flags</h3><div id="flags"></div></div>
     </div>
 
     <div id="tab-ops" class="hidden">
       <div class="grid2">
         <div>
-          <div class="card"><h3>待发放兑换订单</h3><div id="redemptions" class="muted">加载中…</div></div>
-          <div class="card"><h3>积分调整</h3>
+          <div class="card"><h3>Pending redemption orders</h3><div id="redemptions" class="muted">Loading…</div></div>
+          <div class="card"><h3>Points adjustment</h3>
             <div class="row">
-              <input id="adjSid" placeholder="学号" style="width:140px" class="mono">
-              <input id="adjDelta" placeholder="±分值" style="width:90px" class="mono" type="number">
-              <button id="adjGo" class="primary">调整</button>
+              <input id="adjSid" placeholder="Student ID" style="width:140px" class="mono">
+              <input id="adjDelta" placeholder="±points" style="width:90px" class="mono" type="number">
+              <button id="adjGo" class="primary">Apply</button>
             </div>
-            <p class="muted">写入 points_ledger（reason=adjust），全程审计。</p>
+            <p class="muted">Writes to points_ledger (reason=adjust), fully audited.</p>
           </div>
         </div>
-        <div class="card"><h3>本周看板</h3><div id="stats" class="muted">加载中…</div></div>
+        <div class="card"><h3>Weekly dashboard</h3><div id="stats" class="muted">Loading…</div></div>
       </div>
     </div>
   </div>
@@ -90,6 +90,7 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
 
 <script type="module">
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let TOKEN = sessionStorage.getItem('lf_admin') || '';
 const api = (p, opt = {}) => fetch('/api' + p, { ...opt, headers: { 'X-Admin-Token': TOKEN, ...(opt.body && !(opt.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...(opt.headers || {}) } })
@@ -98,7 +99,7 @@ const api = (p, opt = {}) => fetch('/api' + p, { ...opt, headers: { 'X-Admin-Tok
 $('#enter').addEventListener('click', async () => {
   TOKEN = $('#token').value.trim();
   const r = await api('/admin/stats');
-  if (r.status !== 200) { $('#gateErr').textContent = r.status === 401 ? '口令不对' : '连接失败'; return; }
+  if (r.status !== 200) { $('#gateErr').textContent = r.status === 401 ? 'Wrong passphrase' : 'Connection failed'; return; }
   sessionStorage.setItem('lf_admin', TOKEN);
   boot();
 });
@@ -121,42 +122,40 @@ async function loadQueue() {
   const r = await api('/admin/queue');
   if (r.status !== 200) return;
   const q = r.body.queue || [];
-  $('#queue').innerHTML = q.length ? q.map((c) => `
-    <div class="card">
-      <div class="row" style="margin:0 0 6px">
-        <span class="tag">${esc(c.value_tier === 'high' ? '高价值' : '普通')}</span>
-        <b>${esc(c.title)}</b> <span class="mono muted">${esc(c.code)}</span>
-        <span class="spacer"></span>
-        <span class="muted">认领人：${esc(c.claimant_name)} ${esc(c.claimant_class)}（学号仅后台可见）</span>
-      </div>
-      <p class="muted">核验问题：${esc(c.verify_q ?? '—')} ｜ 认领人答案：<b style="color:var(--color-ink)">${esc(c.verify_answer ?? '—')}</b></p>
-      <div class="row">
-        <button class="primary" data-approve="${c.id}">通过 · 发领取码</button>
-        <button class="danger" data-reject="${c.id}">拒绝</button>
-        <span class="muted mono">${esc(String(c.created_at).slice(0, 16).replace('T', ' '))}</span>
-      </div>
-    </div>`).join('') : '<div class="card muted">复核队列是空的 ✅</div>';
+  $('#queue').innerHTML = q.length ? q.map((c) =>
+    '<div class="card">'
+    + '<div class="row" style="margin:0 0 6px">'
+    + '<span class="tag">' + esc(c.value_tier === 'high' ? 'High value' : 'Standard') + '</span>'
+    + '<b>' + esc(c.title) + '</b> <span class="mono muted">' + esc(c.code) + '</span>'
+    + '<span class="spacer"></span>'
+    + '<span class="muted">Claimant: ' + esc(c.claimant_name) + ' ' + esc(c.claimant_class) + ' (student ID visible to staff only)</span>'
+    + '</div>'
+    + '<p class="muted">Verify question: ' + esc(c.verify_q ?? '—') + ' | Claimant answer: <b style="color:var(--color-ink)">' + esc(c.verify_answer ?? '—') + '</b></p>'
+    + '<div class="row">'
+    + '<button class="primary" data-approve="' + c.id + '">Approve · issue pickup code</button>'
+    + '<button class="danger" data-reject="' + c.id + '">Reject</button>'
+    + '<span class="muted mono">' + esc(String(c.created_at).slice(0, 16).replace('T', ' ')) + '</span>'
+    + '</div></div>').join('') : '<div class="card muted">The review queue is empty ✅</div>';
   $$('#queue [data-approve]').forEach((b) => b.addEventListener('click', () => review(b.dataset.approve, 'approve')));
   $$('#queue [data-reject]').forEach((b) => b.addEventListener('click', () => review(b.dataset.reject, 'reject')));
   $('#flags').innerHTML = (r.body.flags || []).length
-    ? '<table><tr><th>对象</th><th>原因</th><th>时间</th></tr>' + r.body.flags.map((f) =>
-      `<tr><td class="mono">${esc(f.subject_type)}#${esc(f.subject_id)}</td><td><span class="tag warn">${esc(f.reason)}</span></td><td class="mono muted">${esc(String(f.created_at).slice(0, 16).replace('T', ' '))}</td></tr>`).join('') + '</table>'
-    : '<p class="muted">暂无黄标 ✅</p>';
+    ? '<table><tr><th>Object</th><th>Reason</th><th>Time</th></tr>' + r.body.flags.map((f) =>
+      '<tr><td class="mono">' + esc(f.subject_type) + '#' + esc(f.subject_id) + '</td><td><span class="tag warn">' + esc(f.reason) + '</span></td><td class="mono muted">' + esc(String(f.created_at).slice(0, 16).replace('T', ' ')) + '</td></tr>').join('') + '</table>'
+    : '<p class="muted">No flags ✅</p>';
 }
 async function review(id, decision) {
   const r = await api('/admin/review', { method: 'POST', body: JSON.stringify({ claim_id: Number(id), decision }) });
-  if (r.status === 200) { toast(decision === 'approve' ? `已通过，领取码 ${r.body.pickup_code}` : '已拒绝，物品重新公示'); loadQueue(); }
-  else toast('操作失败');
+  if (r.status === 200) { toast(decision === 'approve' ? 'Approved. Pickup code ' + r.body.pickup_code : 'Rejected. Item is back on the board'); loadQueue(); }
+  else toast('Operation failed');
 }
 async function loadOps() {
   const s = await api('/admin/stats');
   if (s.status === 200) $('#stats').innerHTML =
-    `<div class="stat"><b>${s.body.stats.pending}</b>在架待认领</div>
-     <div class="stat"><b>${s.body.stats.returned}</b>已归还</div>
-     <div class="stat"><b>${s.body.stats.reviews}</b>待复核</div>`;
+    '<div class="stat"><b>' + s.body.stats.pending + '</b>On display</div>'
+    + '<div class="stat"><b>' + s.body.stats.returned + '</b>Returned</div>'
+    + '<div class="stat"><b>' + s.body.stats.reviews + '</b>Awaiting review</div>';
   const rd = await api('/admin/redemptions').catch(() => null);
-  // 后台订单列表暂由 stats 提供，这里列出 pending 由运营按登记发放
-  $('#redemptions').innerHTML = '<p class="muted">订单发放：在「积分调整」旁手动核销；详细订单接口随 v1.1 完善。</p>';
+  $('#redemptions').innerHTML = '<p class="muted">Handout: verify manually next to Points adjustment; the full order API ships with v1.1.</p>';
 }
 function toast(msg) {
   const d = document.createElement('div');
@@ -165,9 +164,9 @@ function toast(msg) {
 }
 $('#adjGo').addEventListener('click', async () => {
   const sid = $('#adjSid').value.trim(), delta = Number($('#adjDelta').value);
-  if (!/^\d{7}$/.test(sid) || !Number.isInteger(delta) || delta === 0) { toast('学号 7 位、分值非零'); return; }
+  if (!/^[0-9]{7}$/.test(sid) || !Number.isInteger(delta) || delta === 0) { toast('Student ID must be 7 digits and points non-zero'); return; }
   const r = await api('/admin/points/adjust', { method: 'POST', body: JSON.stringify({ student_id: sid, delta }) });
-  toast(r.status === 200 ? '已调整' : '失败'); if (r.status === 200) { $('#adjSid').value = ''; $('#adjDelta').value = ''; }
+  toast(r.status === 200 ? 'Adjusted' : 'Failed'); if (r.status === 200) { $('#adjSid').value = ''; $('#adjDelta').value = ''; }
 });
 if (TOKEN) boot();
 </script>

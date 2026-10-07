@@ -83,10 +83,10 @@ body.k-body {
 .k-scan-grid { grid-template-columns: 1.4fr 1fr; }
 .k-cam-wrap { position: relative; background: var(--color-ink); border-radius: 12px; overflow: hidden; min-height: 0; }
 .k-cam-wrap video { width: 100%; height: 100%; object-fit: cover; display: block; }
-.k-cam-wrap.k-tall { min-height: 300px; }
+.k-cam-wrap.k-tall { flex: 1 1 auto; min-height: 280px; }
 .k-cam-hint { position: absolute; inset: auto 0 0 0; background: rgba(0,0,0,.55); color: #fff;
   font: 600 14px var(--font-ui); text-align: center; padding: 10px; }
-.k-keypad-wrap { display: flex; flex-direction: column; gap: 12px; }
+.k-keypad-wrap { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
 .k-code-display { font: 800 34px var(--font-mono); letter-spacing: 10px; color: var(--color-navy);
   background: var(--color-surface); border: 1.5px solid var(--color-rule); border-radius: 10px;
   padding: 12px 0 12px 10px; text-align: center; min-height: 64px; }
@@ -98,8 +98,11 @@ body.k-body {
 
 /* 登记直办 */
 .k-rep-grid { grid-template-columns: 1.6fr 1fr; }
-.k-rep-left { display: flex; flex-direction: column; min-height: 0; }
-.k-rep-pane { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.k-rep-left { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+.k-rep-pane { display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1 1 auto; }
+.k-rep-pane[hidden] { display: none; }
+.k-rep-right { display: flex; flex-direction: column; gap: 10px; }
+.k-rep-right .k-side-h { margin-top: auto; }
 .k-rep-pane .k-btn.k-wide { margin-top: auto; }
 .k-summary { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: 10px;
   padding: 12px 14px; font: 600 14px/1.6 var(--font-ui); min-height: 84px; white-space: pre-wrap; }
@@ -145,3 +148,45 @@ body.k-body {
 .k-evidence video { width: min(70vw, 720px); border-radius: 12px; background: #000; }
 .slot-tag { font: 700 12px var(--font-mono); color: var(--color-navy); background: var(--color-cyan-soft);
   border: 1px solid var(--color-rule); border-radius: 4px; padding: 2px 8px; }
+
+/* —— 大屏增幅：字号与触控目标随视口放大，内容铺满不压缩 —— */
+@media (min-width: 1280px) {
+  body.k-body { font-size: 18px; }
+  .k-title { font-size: 24px; }
+  .k-grid, .k-scan-grid, .k-rep-grid, .k-find-grid { gap: 22px; padding: 26px 32px; }
+  .k-big { padding: 30px 36px; border-radius: 18px; }
+  .k-big-ico { font-size: 58px; }
+  .k-big-txt b { font-size: 36px; }
+  .k-big-txt small { font-size: 17px; }
+  .k-arrow { font-size: 34px; }
+  .k-btn { font-size: 19px; padding: 18px 26px; }
+  .k-input { font-size: 19px; padding: 15px 16px; }
+  .k-biginput { font-size: 28px; letter-spacing: 3px; }
+  .k-label { font-size: 16px; }
+  .k-hint { font-size: 15px; }
+  .k-chiprow button { font-size: 18px; padding: 13px 22px; }
+  .k-summary { font-size: 17px; min-height: 96px; }
+  .k-steps { font-size: 17px; }
+  .k-side-h { font-size: 15px; }
+  .k-thanks { font-size: 14px; }
+  .k-find-card { padding: 20px 22px; border-radius: 14px; }
+  .k-find-card b { font-size: 21px; }
+  .k-find-card .meta { font-size: 14px; }
+  .k-code-display { font-size: 44px; min-height: 78px; }
+  .k-keypad button { font-size: 28px; padding: 20px 0; }
+  .k-bigmsg { font-size: 36px; }
+  .k-slot-huge { font-size: 128px; }
+  .k-cam-hint { font-size: 16px; padding: 12px; }
+}
+@media (min-width: 1920px) {
+  body.k-body { font-size: 20px; }
+  .k-big { padding: 38px 44px; }
+  .k-big-ico { font-size: 64px; }
+  .k-big-txt b { font-size: 42px; }
+  .k-big-txt small { font-size: 19px; }
+  .k-btn { font-size: 21px; padding: 20px 30px; }
+  .k-input { font-size: 21px; }
+  .k-chiprow button { font-size: 20px; padding: 15px 26px; }
+  .k-bigmsg { font-size: 42px; }
+  .k-slot-huge { font-size: 150px; }
+}

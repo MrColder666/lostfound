@@ -1,161 +1,161 @@
-<!doctype html><html lang="zh"><head>
+<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>L&F · 现场服务台</title>
+<title>L&F · Service Desk</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/fonts.css"><link rel="stylesheet" href="/css/kiosk.css">
 </head><body>
-<div id="offlineBanner" class="k-offline" hidden>网络不可用，请稍后重试 · Offline</div>
+<div id="offlineBanner" class="k-offline" hidden data-i18n="k_offline">Network unavailable — please try again later</div>
 
-<!-- ① 空闲屏：只显示公开信息（§9.2） -->
+<!-- ① Idle -->
 <section class="k-state is-active" data-state="idle">
   <header class="k-top">
-    <div class="k-brand"><span class="k-logo">L&amp;F</span><span class="k-title">失物招领 · 现场服务台</span></div>
-    <div class="k-top-right"><span class="k-dot" id="netDot" title="连接状态"></span><span class="k-clock" id="clock">--:--</span><button class="k-lang" id="langToggle">中 / EN</button></div>
+    <div class="k-brand"><span class="k-logo">L&amp;F</span><span class="k-title" data-i18n="k_desk_title">Lost & Found · Service Desk</span></div>
+    <div class="k-top-right"><span class="k-dot" id="netDot" title="connection"></span><span class="k-clock" id="clock">--:--</span></div>
   </header>
   <div class="k-grid">
     <div class="k-actions">
-      <button class="k-big" id="btnReport">
+      <button class="k-big" id="btnReport" type="button">
         <span class="k-big-ico">📦</span>
-        <span class="k-big-txt"><b>我捡到了东西</b><small>I found something · 拍照登记约 1 分钟</small></span>
+        <span class="k-big-txt"><b data-i18n="k_found_b">I found something</b><small data-i18n="k_found_s">Found something · photo check-in, about 1 min</small></span>
         <span class="k-arrow">→</span>
       </button>
-      <button class="k-big k-outline" id="btnFind">
+      <button class="k-big k-outline" id="btnFind" type="button">
         <span class="k-big-ico">🎁</span>
-        <span class="k-big-txt"><b>我要找物品</b><small>I lost something · 浏览公示，当场核验取走</small></span>
+        <span class="k-big-txt"><b data-i18n="k_lost_b">I lost something</b><small data-i18n="k_lost_s">Lost something · browse the board, verify on site</small></span>
         <span class="k-arrow">→</span>
       </button>
-      <button class="k-voucher" id="btnVoucher">已有手机上的凭证码？投递确认 <span class="mono">→</span></button>
+      <button class="k-voucher" id="btnVoucher" type="button" data-i18n="k_voucher_cta">Have a voucher code on your phone? Confirm drop-off →</button>
     </div>
     <aside class="k-side">
-      <div class="k-side-h">怎么用 / How it works</div>
+      <div class="k-side-h" data-i18n="k_how_h">How it works</div>
       <ol class="k-steps">
-        <li><span class="mono">1</span> 捡到东西 → 在这里登记，系统分配编号格</li>
-        <li><span class="mono">2</span> 物品放入格位，自动上公示列表</li>
-        <li><span class="mono">3</span> 失主凭领取码当场核销取走，捡到者得积分</li>
+        <li><span class="mono">1</span> <span data-i18n="k_step1">Found something → register here and the system assigns a numbered slot</span></li>
+        <li><span class="mono">2</span> <span data-i18n="k_step2">Place the item in the slot — it goes live on the board automatically</span></li>
+        <li><span class="mono">3</span> <span data-i18n="k_step3">The owner picks it up with a pickup code; the finder earns points</span></li>
       </ol>
-      <p class="k-thanks">谢谢每一位捡到东西的同学 🙏</p>
+      <p class="k-thanks" data-i18n="k_thanks">Thank you for turning things in 🙏</p>
     </aside>
   </div>
 </section>
 
-<!-- ② 扫码 / 输码（凭证与领取码共用） -->
+<!-- ② Scan / keypad -->
 <section class="k-state" data-state="scan">
-  <header class="k-top"><button class="k-back" data-go="idle">← 返回</button><span class="k-title" id="scanTitle">投递确认</span><span class="spacer"></span></header>
+  <header class="k-top"><button class="k-back" data-go="idle" data-i18n="k_back" type="button">← Back</button><span class="k-title" id="scanTitle">Drop-off check-in</span><span class="spacer"></span></header>
   <div class="k-scan-grid">
     <div class="k-cam-wrap">
       <video id="scanCam" autoplay playsinline muted></video>
-      <div class="k-cam-hint" id="scanCamHint">把二维码对准镜头 · 对准后自动识别</div>
+      <div class="k-cam-hint" id="scanCamHint" data-i18n="k_scan_hint">Hold the QR code up to the camera — it reads automatically</div>
     </div>
     <div class="k-keypad-wrap">
       <div class="k-code-display mono" id="scanCode">······</div>
       <div class="k-keypad" id="scanPad"></div>
-      <button class="k-btn k-primary" id="scanSubmit" disabled>确认</button>
-      <p class="k-hint">也可手动输入 6 位数字</p>
+      <button class="k-btn k-primary" id="scanSubmit" disabled data-i18n="k_confirm" type="button">Confirm</button>
+      <p class="k-hint" data-i18n="k_pad_hint">Or type the 6 digits manually</p>
     </div>
   </div>
 </section>
 
-<!-- ③ 登记直办（G6-8 及所有无手机者） -->
+<!-- ③ Register on site -->
 <section class="k-state" data-state="report">
-  <header class="k-top"><button class="k-back" data-go="idle">← 返回</button><span class="k-title">登记拾获</span><span class="k-step mono" id="repStep">1/3</span></header>
+  <header class="k-top"><button class="k-back" data-go="idle" data-i18n="k_back" type="button">← Back</button><span class="k-title" data-i18n="k_report_title">Register a found item</span><span class="k-step mono" id="repStep">1/3</span></header>
   <div class="k-rep-grid">
     <div class="k-rep-left">
       <div class="k-rep-pane" data-pane="1">
-        <div class="k-cam-wrap k-tall"><video id="repCam" autoplay playsinline muted></video><div class="k-cam-hint" id="repCamHint">点击「拍照」留存物品照片</div></div>
+        <div class="k-cam-wrap k-tall"><video id="repCam" autoplay playsinline muted></video><div class="k-cam-hint" id="repCamHint" data-i18n="k_cam_hint_ok">Tap “Take photo” to capture the item</div></div>
         <div class="k-row">
-          <button class="k-btn k-primary" id="repShot">📷 拍照</button>
-          <button class="k-btn" id="repRetake" hidden>重拍</button>
+          <button class="k-btn k-primary" id="repShot" data-i18n="k_shot" type="button">📷 Take photo</button>
+          <button class="k-btn" id="repRetake" hidden data-i18n="k_retake" type="button">Retake</button>
         </div>
-        <button class="k-btn k-primary k-wide" id="repTo2" disabled>下一步 →</button>
+        <button class="k-btn k-primary k-wide" id="repTo2" disabled data-i18n="k_next" type="button">Next →</button>
       </div>
       <div class="k-rep-pane" data-pane="2" hidden>
-        <div class="k-label">这是什么？</div>
+        <div class="k-label" data-i18n="k_what">What is it?</div>
         <div class="k-chiprow" id="repCat"></div>
-        <div class="k-label">主要颜色（自动拼成标题）</div>
+        <div class="k-label" data-i18n="k_color_label">Main colour (builds the title automatically)</div>
         <div class="k-chiprow" id="repColor"></div>
-        <div class="k-label">在哪里捡到的？</div>
+        <div class="k-label" data-i18n="k_where">Where did you find it?</div>
         <div class="k-chiprow" id="repLoc"></div>
-        <div class="k-label">一个只有失主才知道的细节（认领时核验用，不公开）</div>
-        <input class="k-input" id="repVerify" placeholder="例：内侧写着名字 / 里面还有一支笔">
+        <div class="k-label" data-i18n="k_verify_label">A detail only the owner would know (checked when claimed — never shown publicly)</div>
+        <input class="k-input" id="repVerify" data-i18n-ph="k_verify_ph" placeholder="e.g. a name written inside / there is still a pen in it">
         <div class="k-row">
-          <button class="k-btn" data-gopane="1">← 上一步</button>
-          <button class="k-btn k-primary" id="repTo3" disabled>下一步 →</button>
+          <button class="k-btn" data-gopane="1" data-i18n="k_prev" type="button">← Back</button>
+          <button class="k-btn k-primary" id="repTo3" disabled data-i18n="k_next" type="button">Next →</button>
         </div>
       </div>
       <div class="k-rep-pane" data-pane="3" hidden>
-        <div class="k-label">你的学号</div>
-        <input class="k-input mono k-biginput" id="repSid" inputmode="numeric" maxlength="7" placeholder="7 位数字">
+        <div class="k-label" data-i18n="k_your_sid">Your student ID</div>
+        <input class="k-input mono k-biginput" id="repSid" inputmode="numeric" maxlength="7" data-i18n-ph="k_sid_ph" placeholder="7 digits">
         <div class="k-row">
-          <span class="k-field"><span class="k-label">姓名</span><input class="k-input" id="repName" placeholder="姓名"></span>
-          <span class="k-field"><span class="k-label">班级</span><input class="k-input" id="repClass" placeholder="如 7(3)"></span>
+          <span class="k-field"><span class="k-label" data-i18n="k_name">Name</span><input class="k-input" id="repName" data-i18n-ph="k_name_ph" placeholder="Name"></span>
+          <span class="k-field"><span class="k-label" data-i18n="k_class">Class</span><input class="k-input" id="repClass" data-i18n-ph="k_class_ph" placeholder="e.g. 7(3)"></span>
         </div>
-        <p class="k-hint">积分将发放到这个学号 · 领取成功后才结算</p>
+        <p class="k-hint" data-i18n="k_points_hint">Points go to this student ID · credited only after a successful pickup</p>
         <div class="k-row">
-          <button class="k-btn" data-gopane="2">← 上一步</button>
-          <button class="k-btn k-primary k-wide" id="repSubmit" disabled>提交登记</button>
+          <button class="k-btn" data-gopane="2" data-i18n="k_prev" type="button">← Back</button>
+          <button class="k-btn k-primary k-wide" id="repSubmit" disabled data-i18n="k_submit" type="button">Submit registration</button>
         </div>
       </div>
     </div>
     <aside class="k-rep-right">
-      <div class="k-label">已选</div>
-      <div id="repSummary" class="k-summary">尚未选择</div>
-      <div class="k-side-h">照片仅用于核对与公示</div>
-      <p class="k-hint">非公开细节只在认领核验时比对，永远不会出现在公示里。</p>
+      <div class="k-label" data-i18n="k_selected">Selected</div>
+      <div id="repSummary" class="k-summary" data-i18n="k_sum_empty">Nothing selected yet</div>
+      <div class="k-side-h" data-i18n="k_photo_note_h">Photos are used for matching and the public board only</div>
+      <p class="k-hint" data-i18n="k_photo_note">The private detail is only compared during claim verification and never appears on the board.</p>
     </aside>
   </div>
 </section>
 
-<!-- ④ 动态分格确认（大字指引） -->
+<!-- ④ Slot confirmation -->
 <section class="k-state" data-state="confirm">
-  <header class="k-top"><span class="k-title">入库完成</span><span class="spacer"></span></header>
+  <header class="k-top"><span class="k-title" data-i18n="k_confirm_title">Checked in</span><span class="spacer"></span></header>
   <div class="k-center">
     <div class="k-check">✓</div>
-    <div class="k-bigmsg">已登记，请放入格位</div>
-    <div class="k-slot-huge mono" id="confirmSlot">格 --</div>
+    <div class="k-bigmsg" data-i18n="k_confirm_msg">Registered — please place it in the slot</div>
+    <div class="k-slot-huge mono" id="confirmSlot"></div>
     <div class="k-hint mono" id="confirmCode"></div>
-    <button class="k-btn k-primary k-wide" id="confirmDone">我已放入 → 完成</button>
-    <button class="k-btn k-wide" data-go="idle">返回首页</button>
+    <button class="k-btn k-primary k-wide" id="confirmDone" data-i18n="k_done_btn" type="button">I have placed it → Done</button>
+    <button class="k-btn k-wide" data-go="idle" data-i18n="k_home" type="button">Back to start</button>
   </div>
 </section>
 
-<!-- ⑤ 认领：浏览 → 核验 -->
+<!-- ⑤ Find & claim -->
 <section class="k-state" data-state="find">
-  <header class="k-top"><button class="k-back" data-go="idle">← 返回</button><span class="k-title">我要找物品</span><span class="spacer"></span></header>
+  <header class="k-top"><button class="k-back" data-go="idle" data-i18n="k_back" type="button">← Back</button><span class="k-title" data-i18n="k_find_title">I lost something</span><span class="spacer"></span></header>
   <div class="k-find-grid">
-    <div class="k-find-list" id="findList"><p class="k-hint">加载中…</p></div>
-    <aside class="k-find-detail" id="findDetail"><p class="k-hint">← 从左侧选择你的物品</p></aside>
+    <div class="k-find-list" id="findList"><p class="k-hint" data-i18n="loading">Loading…</p></div>
+    <aside class="k-find-detail" id="findDetail"><p class="k-hint" data-i18n="k_find_pick">← Pick your item on the left</p></aside>
   </div>
 </section>
 
-<!-- ⑥ 核销出库 -->
+<!-- ⑥ Pickup handout -->
 <section class="k-state" data-state="pickup">
-  <header class="k-top"><button class="k-back" data-go="find">← 返回</button><span class="k-title">核销出库</span><span class="mono k-step">PICKUP</span></header>
+  <header class="k-top"><button class="k-back" data-go="find" data-i18n="k_back" type="button">← Back</button><span class="k-title" data-i18n="k_pickup_title">Pickup handout</span><span class="mono k-step">PICKUP</span></header>
   <div class="k-scan-grid">
     <div class="k-keypad-wrap">
-      <div class="k-label">输入 6 位领取码（认领券上）</div>
+      <div class="k-label" data-i18n="k_pickup_label">Enter the 6-digit pickup code (on the claim voucher)</div>
       <div class="k-code-display mono" id="pickCode">······</div>
       <div class="k-keypad" id="pickPad"></div>
-      <button class="k-btn k-primary" id="pickVerify" disabled>核对领取码</button>
+      <button class="k-btn k-primary" id="pickVerify" disabled data-i18n="k_pickup_verify" type="button">Verify pickup code</button>
     </div>
-    <aside class="k-pick-info" id="pickInfo"><p class="k-hint">核对通过后在这里确认出库</p></aside>
+    <aside class="k-pick-info" id="pickInfo"><p class="k-hint" data-i18n="k_pickup_hint">After verification, confirm the handout here</p></aside>
   </div>
   <div class="k-evidence" id="evidenceWrap" hidden>
     <video id="pickCam" autoplay playsinline muted></video>
     <div class="k-row">
-      <button class="k-btn k-primary" id="pickShot">📷 拍照存证</button>
-      <button class="k-btn" id="pickCancel">取消</button>
+      <button class="k-btn k-primary" id="pickShot" data-i18n="k_evidence_shot" type="button">📷 Photo evidence</button>
+      <button class="k-btn" id="pickCancel" data-i18n="k_cancel" type="button">Cancel</button>
     </div>
   </div>
 </section>
 
-<!-- ⑦ 成功 -->
+<!-- ⑦ Done -->
 <section class="k-state" data-state="done">
-  <header class="k-top"><span class="k-title">完成</span><span class="spacer"></span></header>
+  <header class="k-top"><span class="k-title" data-i18n="k_done_title">Done</span><span class="spacer"></span></header>
   <div class="k-center">
     <div class="k-check">✓</div>
-    <div class="k-bigmsg" id="doneMsg">已完成</div>
+    <div class="k-bigmsg" id="doneMsg" data-i18n="k_done_default">All done</div>
     <div class="k-hint" id="doneSub"></div>
-    <button class="k-btn k-primary k-wide" data-go="idle">返回首页</button>
+    <button class="k-btn k-primary k-wide" data-go="idle" data-i18n="k_home" type="button">Back to start</button>
   </div>
 </section>
 
