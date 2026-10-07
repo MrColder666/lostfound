@@ -93,3 +93,56 @@ test('fulfill 乐观锁：重复核销第二次 → 409；出库后积分入账�
   const led = await db.prepare("SELECT delta FROM points_ledger WHERE reason='claim_reward'").all();
   assert.equal(led.results.length, 1);
 });
+
+// ---- 任务 9：claims ----
+import { claims, settleFreeze } from '../src/api/claims.js';
+// 修正①：简报 VALUES 为 13 值对 14 列，补一个 ?（value_tier/verify_q/verify_a 三连 ?）
+// 修正②：默认 createdAt 简报硬编码 '2026-10-07T07:00:00Z'（假设 now≈09:00Z），本机时钟为 UTC 03:4x，改为相对 now 拨回 2 小时
+async function mkInStock(db, { vq = '手柄上有什么？', va = '白色胶带', tier = 'normal', createdAt = new Date(Date.now() - 2 * 3600000).toISOString() } = {}) {
+  await db.prepare(`INSERT INTO items(code,title,description,category,location,value_tier,verify_q,verify_a,status,registered_by,registered_via,found_at,slot_no,created_at)
+    VALUES ('LF-T-0001','蓝色雨伞','长柄','other','教学楼',?,?,?,'in_stock','9031624','phone','2026-10-07T06:00:00Z',2,?)`)
+    .bind(tier, vq, va, createdAt).run();
+  return (await db.prepare("SELECT id FROM items WHERE code='LF-T-0001'").first()).id;
+}
+test('答对 + 无竞争 + 已出冷冻期 → auto_approved 发领取码', async () => {
+  const db = fakeDb(SCHEMA);
+  const itemId = await mkInStock(db);   // created_at 已拨回 2 小时前 = 出冷冻期
+  const res = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: '李思远', class: '7(3)', verify_answer: '白色胶带' }));
+  const body = await res.json();
+  assert.equal(body.status, 'auto_approved');
+  assert.match(body.pickup_code, /^\d{6}$/);
+});
+test('答错 → in_review（不拒绝）', async () => {
+  const db = fakeDb(SCHEMA);
+  await mkInStock(db);
+  const body = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: '李思远', class: '7(3)', verify_answer: '红色图案' }))).json();
+  assert.equal(body.status, 'in_review');
+});
+test('冷冻期内首个申请 → pending；settleFreeze 结算后自动通过', async () => {
+  const db = fakeDb(SCHEMA);
+  await mkInStock(db, { createdAt: new Date(Date.now() - 30 * 60000).toISOString() });   // 30 分钟前，仍在 1h 冷冻期
+  const body = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: '李思远', class: '7(3)', verify_answer: '白色胶带' }))).json();
+  assert.equal(body.status, 'pending');
+  // 修正③：测试无法真实等待冷冻期流逝，结算前把 created_at 拨回 61 分钟前模拟「到点」
+  await db.prepare("UPDATE items SET created_at=? WHERE code='LF-T-0001'").bind(new Date(Date.now() - 61 * 60000).toISOString()).run();
+  const settled = await (await settleFreeze(db, env)).json();
+  assert.equal(settled.approved.length, 1);                     // cron 到点结算
+  const row = await db.prepare("SELECT status, pickup_code FROM claims WHERE item_id=1").first();
+  assert.equal(row.status, 'approved');
+});
+test('冷冻期内 2 人申请 → 全部 in_review', async () => {
+  const db = fakeDb(SCHEMA);
+  await mkInStock(db, { createdAt: new Date(Date.now() - 30 * 60000).toISOString() });
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031622','王小明','7(3)')").run();
+  await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: '李思远', class: '7(3)', verify_answer: '白色胶带' }));
+  const body = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031622', name: '王小明', class: '7(3)', verify_answer: '白色胶带' }))).json();
+  assert.equal(body.status, 'in_review');
+  assert.equal((await db.prepare("SELECT COUNT(*) c FROM claims WHERE status='in_review'").first()).c, 2);
+});
+test('秒领黄标：入库 10 分钟内被认领 → risk_flags 记录 SNATCH_10MIN', async () => {
+  const db = fakeDb(SCHEMA);
+  await mkInStock(db, { createdAt: new Date(Date.now() - 5 * 60000).toISOString() });
+  await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: '李思远', class: '7(3)', verify_answer: '白色胶带' }));
+  const flag = await db.prepare("SELECT reason FROM risk_flags WHERE subject_type='item'").first();
+  assert.equal(flag.reason, 'SNATCH_10MIN');
+});
