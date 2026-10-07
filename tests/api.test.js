@@ -146,3 +146,34 @@ test('秒领黄标：入库 10 分钟内被认领 → risk_flags 记录 SNATCH_1
   const flag = await db.prepare("SELECT reason FROM risk_flags WHERE subject_type='item'").first();
   assert.equal(flag.reason, 'SNATCH_10MIN');
 });
+
+// ---- 任务 10：points ----
+import { pointsQuery, tip, redeem } from '../src/api/points.js';
+test('查询分级：仅学号 → total+contributions；带姓名 → 明细', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES ('9031622',10,'claim_reward','2026-10')").run();
+  const basic = await (await pointsQuery(db, env, new Request('https://x/api/points/9031622'))).json();
+  assert.deepEqual(Object.keys(basic).sort(), ['contributions', 'ok', 'total']);
+  const full = await (await pointsQuery(db, env, new Request('https://x/api/points/9031622?name=' + encodeURIComponent('王小明')))).json();
+  assert.equal(full.total, 10); assert.equal(full.ledger.length, 1);
+  const bad = await pointsQuery(db, env, new Request('https://x/api/points/9031622?name=' + encodeURIComponent('张三')));
+  assert.equal(bad.status, 403);                    // 二次校验失败
+});
+test('打赏三限：成功一次后重复 → 409（唯一索引兜底）', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO claims(id,item_id,claimant_id,status,pickup_code) VALUES (9,1,'9031623','fulfilled','111111')").run();
+  await db.prepare("INSERT INTO items(id,code,title,category,location,registered_by,registered_via,found_at,status) VALUES (1,'LF-9','雨伞','other','x','9031622','phone','2026-10-01T00:00:00Z','returned')").run();  // 修正：补齐 items 各 NOT NULL 列
+  const ok1 = await tip(db, env, jr({ claim_id: 9, from: '9031623', to: '9031622', points: 5 }));
+  assert.equal(ok1.status, 200);
+  const ok2 = await tip(db, env, jr({ claim_id: 9, from: '9031623', to: '9031622', points: 5 }));
+  assert.equal(ok2.status, 409);
+});
+test('兑换：余额不足 402；成功则扣分+订单 pending', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO rewards(id,name,name_en,cost,stock) VALUES (1,'文具套装','Stationery',40,3)").run();
+  await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES ('9031622',50,'claim_reward','2026-10')").run();
+  const ok = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1 }));
+  assert.equal(ok.status, 200);
+  const poor = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1 }));  // 余额已扣 40，剩 10 < 40
+  assert.equal(poor.status, 402);
+});
