@@ -29,11 +29,13 @@ export async function report(db, env, req) {
   const code = `LF-${now.getUTCFullYear()}-${String(now.getTime()).slice(-4)}${String(Math.floor(Math.random() * 10))}`;
   const drop = genCode();
   // 修正：简报 VALUES 为 14 值对 15 列（且 'registered' 会错位到 drop_code）；按列序改为 11?+'registered'+3?
-  await db.prepare(`INSERT INTO items(code,title,description,category,location,photo_path,verify_q,verify_a,value_tier,drop_code,drop_expires_at,status,registered_by,registered_via,found_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,'registered',?,?,?)`)
+  // 修复：created_at/updated_at 显式写 JS UTC ISO（带 T）——schema 默认 datetime('now') 是空格格式，
+  // 会被 claims.js 的 new Date() 按本地时区解析（+8h 偏差，冷冻期计算失真）
+  await db.prepare(`INSERT INTO items(code,title,description,category,location,photo_path,verify_q,verify_a,value_tier,drop_code,drop_expires_at,status,registered_by,registered_via,found_at,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,'registered',?,?,?,?,?)`)
     .bind(code, title, desc, category, location, photoPath, vq, va, tierOf(category),
           drop, dropExpiry(now, Number(env.DROP_TTL_MINUTES || 15)), sid,
           get('via') === 'kiosk' ? 'kiosk' : 'phone',   // kiosk 直办（T14）复用本端点
-          now.toISOString()).run();
+          now.toISOString(), now.toISOString(), now.toISOString()).run();
   return Response.json({ ok: true, code, drop_code: drop, drop_expires_at: dropExpiry(now, Number(env.DROP_TTL_MINUTES || 15)) });
 }

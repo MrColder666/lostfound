@@ -10,6 +10,8 @@ async function upsertIdentity(db, { student_id, name, class: cls }) {
 }
 export async function claims(db, env, req) {
   const b = await req.json();
+  // 修复：非法学号直接 400（原 upsertIdentity 内 throw 会被 worker 兜底成 500）
+  if (!/^\d{7}$/.test(String(b.student_id ?? ''))) return json({ ok: false, error: 'BAD_STUDENT_ID' }, 400);
   // 修正：冷冻期内物品已是 claim_pending，仍可被他人申请（竞争场景），查询须含两种状态
   const item = await db.prepare("SELECT * FROM items WHERE code=? AND status IN ('in_stock','claim_pending')").bind(b.code).first();
   if (!item) return json({ ok: false, error: 'ITEM_NOT_CLAIMABLE' }, 404);

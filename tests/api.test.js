@@ -202,3 +202,19 @@ test('admin：复核通过 → 发领取码（写审计）', async () => {
   assert.equal(c.status, 'approved'); assert.match(c.pickup_code, /^\d{6}$/);
   assert.equal((await db.prepare("SELECT COUNT(*) c FROM admin_audit").first()).c, 1);
 });
+
+// ---- 修复回归：UTC ISO 时间 + 非法学号 400 ----
+test('修复回归：report 落库 created_at/updated_at 为 UTC ISO（带 T）', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  const body = await (await report(db, env, await mkReport())).json();
+  const row = await db.prepare('SELECT created_at, updated_at FROM items WHERE code=?').bind(body.code).first();
+  assert.match(row.created_at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(row.updated_at, /^\d{4}-\d{2}-\d{2}T/);
+});
+test('修复回归：认领非法学号 → 400 BAD_STUDENT_ID（不再 500）', async () => {
+  const db = fakeDb(SCHEMA);
+  await mkInStock(db);
+  const res = await claims(db, env, jr({ code: 'LF-T-0001', student_id: 'abc123', name: 'x', class: 'y', verify_answer: '白色胶带' }));
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error, 'BAD_STUDENT_ID');
+});
