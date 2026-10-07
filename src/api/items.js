@@ -1,5 +1,5 @@
 // src/api/items.js —— 公开字段白名单，唯一出口
-const PUBLIC = 'id, code, title, description, category, location, photo_path, slot_no, value_tier, status, found_at';
+const PUBLIC = 'id, code, title, description, category, location, photo_path, slot_no, value_tier, status, found_at, verify_q';
 export async function listItems(db, env, req) {
   const url = new URL(req.url);
   const cat = url.searchParams.get('category');

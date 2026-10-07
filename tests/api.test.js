@@ -18,7 +18,7 @@ test('listItems 只返回白名单字段（无学号/核验特征）', async () 
   assert.equal(body.ok, true);
   const item = body.items[0];
   assert.equal(item.finder_name, '王小明');
-  assert.ok(!('verify_a' in item) && !('verify_q' in item));
+  assert.ok(('verify_q' in item) && !('verify_a' in item));  // 问题公开、答案保密
   assert.equal(JSON.stringify(body.items).includes('9031622'), false);
 });
 test('report：合法登记 → 6 位凭证码 + 15 分钟过期，无格号', async () => {
