@@ -72,7 +72,7 @@ lostfound/
   "name": "lostfound",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/" }
+  "scripts": { "test": "node --test --experimental-test-isolation=none tests/" }
 }
 ```
 
@@ -224,7 +224,7 @@ test('schema 建表齐全', () => {
 });
 ```
 
-运行：`node --test tests/schema.test.js` → 预期 PASS（若 `node:sqlite` 报 experimental 警告属正常；若不可用，改用 `apk add sqlite` 后用 `sqlite3 :memory: < schema.sql` 校验语法）。
+运行：`node --test --experimental-test-isolation=none tests/schema.test.js` → 预期 PASS（若 `node:sqlite` 报 experimental 警告属正常；若不可用，改用 `apk add sqlite` 后用 `sqlite3 :memory: < schema.sql` 校验语法）。
 
 - [ ] **步骤 1.6：Commit**
 
@@ -265,7 +265,7 @@ test('isExpired 边界：过期 true、未过期 false、缺值 true', () => {
 });
 ```
 
-- [ ] **步骤 2.2：运行确认失败** — `node --test tests/codes.test.js` → FAIL（模块不存在）
+- [ ] **步骤 2.2：运行确认失败** — `node --test --experimental-test-isolation=none tests/codes.test.js` → FAIL（模块不存在）
 
 - [ ] **步骤 2.3：实现**
 
@@ -286,7 +286,7 @@ export function isExpired(iso, nowIso = new Date().toISOString()) {
 }
 ```
 
-- [ ] **步骤 2.4：运行确认通过** — `node --test tests/codes.test.js` → PASS
+- [ ] **步骤 2.4：运行确认通过** — `node --test --experimental-test-isolation=none tests/codes.test.js` → PASS
 
 - [ ] **步骤 2.5：Commit** — `git add -A && git commit -m "功能: 码生成与过期判断 lib/codes"`
 
@@ -514,7 +514,7 @@ export function evaluate(f, th = {}) {
 }
 ```
 
-- [ ] **步骤 6.4：运行确认通过** — PASS（跑全量：`node --test tests/`）
+- [ ] **步骤 6.4：运行确认通过** — PASS（跑全量：`node --test --experimental-test-isolation=none tests/`）
 - [ ] **步骤 6.5：Commit** — `git commit -am "安全: 黄标规则 lib/risk"`
 
 ---
@@ -654,7 +654,7 @@ export async function report(db, env, req) {
 }
 ```
 
-- [ ] **步骤 7.5：运行确认通过** — `node --test tests/api.test.js` → PASS（若 items 查询 SQL 报错，修 `bind` 分支写法）
+- [ ] **步骤 7.5：运行确认通过** — `node --test --experimental-test-isolation=none tests/api.test.js` → PASS（若 items 查询 SQL 报错，修 `bind` 分支写法）
 - [ ] **步骤 7.6：Commit** — `git commit -am "功能: 公示白名单 API + 登记发凭证码"`
 
 ---
@@ -1145,7 +1145,7 @@ export default {
 };
 ```
 
-- [ ] **步骤 11.5：运行全量测试** — `node --test tests/` → 全 PASS
+- [ ] **步骤 11.5：运行全量测试** — `node --test --experimental-test-isolation=none tests/` → 全 PASS
 - [ ] **步骤 11.6：Commit** — `git commit -am "功能: 后台 API + worker 路由装配 + cron 冷冻期结算"`
 
 ---
@@ -1423,7 +1423,7 @@ self.addEventListener('fetch', e => {
 ## 执行注意（给每个工作者）
 
 1. **顺序执行 T1→T16**；T2-T6 相互独立可并行，但都依赖 T1 的 fake-db/schema。
-2. 测试即验收：每任务结束 `node --test tests/` 必须全绿才能 commit。
+2. 测试即验收：每任务结束 `node --test --experimental-test-isolation=none tests/` 必须全绿才能 commit。
 3. 任何与 spec 的偏差：停下来，在任务报告中说明，不要自行改规格。
 4. iSH 环境无 workerd：**不要**尝试 `wrangler dev`；本地只做单测与静态预览（`python3 -m http.server --directory public`）。
 5. 视觉纪律：所有色/字/间距只准引用 tokens.css 变量；发现需要新值 → 先加 token 再用。
