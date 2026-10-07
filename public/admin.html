@@ -1,0 +1,174 @@
+<!doctype html><html lang="zh"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L&F · 后台</title>
+<link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/fonts.css">
+<style>
+* { box-sizing: border-box; margin: 0; }
+body { font-family: var(--font-ui); background: var(--color-paper); color: var(--color-ink); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 60px; }
+header.bar { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--color-rule); margin-bottom: 20px; }
+header.bar h1 { font: 900 20px var(--font-ui); }
+header.bar .mono { font: 600 12px var(--font-mono); color: var(--color-muted); }
+.spacer { flex: 1; }
+button { font: 600 14px var(--font-ui); border-radius: var(--radius-btn); padding: 9px 14px;
+  border: 1.5px solid var(--color-rule); background: var(--color-surface); color: var(--color-ink); cursor: pointer; }
+button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
+button.danger { background: transparent; border-color: var(--color-danger); color: var(--color-danger); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:is(:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
+input { font: 400 15px var(--font-ui); border: 1.5px solid var(--color-rule); border-radius: var(--radius-btn);
+  padding: 10px 12px; background: var(--color-surface); color: var(--color-ink); }
+input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--color-accent); }
+.card { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-card);
+  padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow-card); }
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabs button[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
+.grid2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+h3 { font: 800 15px var(--font-ui); margin-bottom: 8px; }
+.muted { color: var(--color-muted); font-size: 13px; }
+.mono { font-family: var(--font-mono); }
+.row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.stat b { font: 800 26px var(--font-mono); color: var(--color-navy); margin-right: 6px; }
+.tag { font: 600 12px var(--font-ui); border-radius: var(--radius-pill); padding: 2px 10px; background: var(--color-cyan-soft); color: var(--color-navy); display: inline-block; }
+.tag.warn { background: var(--color-warn-soft); color: var(--color-warn); }
+#gate { max-width: 420px; margin: 80px auto; text-align: center; }
+#gate input { width: 100%; margin: 12px 0; text-align: center; font-family: var(--font-mono); }
+.hidden { display: none !important; }
+table { width: 100%; border-collapse: collapse; }
+td, th { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-rule); font-size: 14px; vertical-align: top; }
+th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform: uppercase; letter-spacing: .04em; }
+</style>
+</head><body>
+<div class="wrap">
+  <header class="bar">
+    <h1>L&amp;F 后台</h1><span class="mono">ADMIN</span><span class="spacer"></span>
+    <button id="logout" class="hidden">退出</button>
+  </header>
+
+  <div id="gate" class="card">
+    <h3>输入后台口令</h3>
+    <p class="muted">口令即访问凭证，只保存在本机浏览器（sessionStorage）</p>
+    <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
+    <button class="primary k-wide" id="enter" style="width:100%">进入</button>
+    <p class="muted" id="gateErr" style="margin-top:8px"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="tabs">
+      <button data-tab="review" aria-pressed="true">复核队列</button>
+      <button data-tab="risk" aria-pressed="false">异常黄标</button>
+      <button data-tab="ops" aria-pressed="false">运营</button>
+    </div>
+
+    <div id="tab-review">
+      <div id="queue"></div>
+    </div>
+
+    <div id="tab-risk" class="hidden">
+      <div class="card"><h3>未处理黄标</h3><div id="flags"></div></div>
+    </div>
+
+    <div id="tab-ops" class="hidden">
+      <div class="grid2">
+        <div>
+          <div class="card"><h3>待发放兑换订单</h3><div id="redemptions" class="muted">加载中…</div></div>
+          <div class="card"><h3>积分调整</h3>
+            <div class="row">
+              <input id="adjSid" placeholder="学号" style="width:140px" class="mono">
+              <input id="adjDelta" placeholder="±分值" style="width:90px" class="mono" type="number">
+              <button id="adjGo" class="primary">调整</button>
+            </div>
+            <p class="muted">写入 points_ledger（reason=adjust），全程审计。</p>
+          </div>
+        </div>
+        <div class="card"><h3>本周看板</h3><div id="stats" class="muted">加载中…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let TOKEN = sessionStorage.getItem('lf_admin') || '';
+const api = (p, opt = {}) => fetch('/api' + p, { ...opt, headers: { 'X-Admin-Token': TOKEN, ...(opt.body && !(opt.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...(opt.headers || {}) } })
+  .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+
+$('#enter').addEventListener('click', async () => {
+  TOKEN = $('#token').value.trim();
+  const r = await api('/admin/stats');
+  if (r.status !== 200) { $('#gateErr').textContent = r.status === 401 ? '口令不对' : '连接失败'; return; }
+  sessionStorage.setItem('lf_admin', TOKEN);
+  boot();
+});
+$('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#enter').click(); });
+$('#logout').addEventListener('click', () => { sessionStorage.removeItem('lf_admin'); location.reload(); });
+
+$$('.tabs button').forEach((b) => b.addEventListener('click', () => {
+  $$('.tabs button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+  b.setAttribute('aria-pressed', 'true');
+  ['review', 'risk', 'ops'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+}));
+
+async function boot() {
+  $('#gate').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  $('#logout').classList.remove('hidden');
+  await Promise.all([loadQueue(), loadOps()]);
+}
+async function loadQueue() {
+  const r = await api('/admin/queue');
+  if (r.status !== 200) return;
+  const q = r.body.queue || [];
+  $('#queue').innerHTML = q.length ? q.map((c) => `
+    <div class="card">
+      <div class="row" style="margin:0 0 6px">
+        <span class="tag">${esc(c.value_tier === 'high' ? '高价值' : '普通')}</span>
+        <b>${esc(c.title)}</b> <span class="mono muted">${esc(c.code)}</span>
+        <span class="spacer"></span>
+        <span class="muted">认领人：${esc(c.claimant_name)} ${esc(c.claimant_class)}（学号仅后台可见）</span>
+      </div>
+      <p class="muted">核验问题：${esc(c.verify_q ?? '—')} ｜ 认领人答案：<b style="color:var(--color-ink)">${esc(c.verify_answer ?? '—')}</b></p>
+      <div class="row">
+        <button class="primary" data-approve="${c.id}">通过 · 发领取码</button>
+        <button class="danger" data-reject="${c.id}">拒绝</button>
+        <span class="muted mono">${esc(String(c.created_at).slice(0, 16).replace('T', ' '))}</span>
+      </div>
+    </div>`).join('') : '<div class="card muted">复核队列是空的 ✅</div>';
+  $$('#queue [data-approve]').forEach((b) => b.addEventListener('click', () => review(b.dataset.approve, 'approve')));
+  $$('#queue [data-reject]').forEach((b) => b.addEventListener('click', () => review(b.dataset.reject, 'reject')));
+  $('#flags').innerHTML = (r.body.flags || []).length
+    ? '<table><tr><th>对象</th><th>原因</th><th>时间</th></tr>' + r.body.flags.map((f) =>
+      `<tr><td class="mono">${esc(f.subject_type)}#${esc(f.subject_id)}</td><td><span class="tag warn">${esc(f.reason)}</span></td><td class="mono muted">${esc(String(f.created_at).slice(0, 16).replace('T', ' '))}</td></tr>`).join('') + '</table>'
+    : '<p class="muted">暂无黄标 ✅</p>';
+}
+async function review(id, decision) {
+  const r = await api('/admin/review', { method: 'POST', body: JSON.stringify({ claim_id: Number(id), decision }) });
+  if (r.status === 200) { toast(decision === 'approve' ? `已通过，领取码 ${r.body.pickup_code}` : '已拒绝，物品重新公示'); loadQueue(); }
+  else toast('操作失败');
+}
+async function loadOps() {
+  const s = await api('/admin/stats');
+  if (s.status === 200) $('#stats').innerHTML =
+    `<div class="stat"><b>${s.body.stats.pending}</b>在架待认领</div>
+     <div class="stat"><b>${s.body.stats.returned}</b>已归还</div>
+     <div class="stat"><b>${s.body.stats.reviews}</b>待复核</div>`;
+  const rd = await api('/admin/redemptions').catch(() => null);
+  // 后台订单列表暂由 stats 提供，这里列出 pending 由运营按登记发放
+  $('#redemptions').innerHTML = '<p class="muted">订单发放：在「积分调整」旁手动核销；详细订单接口随 v1.1 完善。</p>';
+}
+function toast(msg) {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:99;background:rgba(32,41,49,.92);color:#fff;font:600 14px var(--font-ui);padding:10px 18px;border-radius:99px';
+  d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 3000);
+}
+$('#adjGo').addEventListener('click', async () => {
+  const sid = $('#adjSid').value.trim(), delta = Number($('#adjDelta').value);
+  if (!/^\d{7}$/.test(sid) || !Number.isInteger(delta) || delta === 0) { toast('学号 7 位、分值非零'); return; }
+  const r = await api('/admin/points/adjust', { method: 'POST', body: JSON.stringify({ student_id: sid, delta }) });
+  toast(r.status === 200 ? '已调整' : '失败'); if (r.status === 200) { $('#adjSid').value = ''; $('#adjDelta').value = ''; }
+});
+if (TOKEN) boot();
+</script>
+</body></html>

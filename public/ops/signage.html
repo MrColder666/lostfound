@@ -1,0 +1,64 @@
+<!doctype html><html lang="zh"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L&F · 引导牌（A5 打印）</title>
+<style>
+* { box-sizing: border-box; margin: 0; }
+body { font-family: "Lato", -apple-system, "PingFang SC", sans-serif; background: #eee; color: #202931; }
+.noprint { padding: 14px 20px; background: #00458a; color: #fff; font-size: 14px; }
+.noprint button { font: 600 14px/1 system-ui; padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px; }
+.noprint input { font: 400 14px system-ui; padding: 8px 10px; border-radius: 6px; border: none; width: 260px; }
+.sign { width: 148mm; height: 210mm; margin: 8mm auto; background: linear-gradient(180deg, #005ebb 0%, #00458a 34%, #00458a 100%);
+  color: #fff; border-radius: 3mm; padding: 10mm 9mm; display: flex; flex-direction: column; align-items: center;
+  text-align: center; position: relative; overflow: hidden; }
+.brand { position: absolute; top: 7mm; left: 8mm; display: flex; align-items: center; gap: 3mm; }
+.brand .logo { width: 11mm; height: 11mm; border-radius: 50%; background: #fff; color: #00458a;
+  font: 900 5mm/11mm "Lato", sans-serif; text-align: center; }
+.brand span.b2 { font: 800 5mm/1 "Lato", sans-serif; }
+h1 { font: 900 13mm/1.25 "Lato", "PingFang SC", sans-serif; margin-top: 22mm; }
+h1 small { display: block; font: 700 5.5mm/1.6 "Lato", sans-serif; color: #caf0fe; letter-spacing: 1mm; }
+.qr-box { background: #fff; border-radius: 4mm; padding: 5mm; margin-top: 8mm; }
+.qr-box canvas { display: block; width: 62mm; height: 62mm; }
+.qr-cap { color: #202931; font: 700 4mm/1 "Lato", sans-serif; margin-top: 2.5mm; }
+.steps { margin-top: 8mm; display: grid; gap: 3.2mm; font: 500 4.6mm/1.5 "Lato", "PingFang SC", sans-serif; text-align: left; }
+.steps b { color: #caf0fe; font-family: "IBM Plex Mono", monospace; margin-right: 2.5mm; }
+.foot { margin-top: auto; width: 100%; border-top: .4mm solid rgba(255,255,255,.25); padding-top: 4mm;
+  font: 400 3.6mm/1.5 "Lato", "PingFang SC", sans-serif; opacity: .85; }
+@media print {
+  body { background: #fff; }
+  .noprint { display: none; }
+  .sign { margin: 0; border-radius: 0; }
+}
+</style></head><body>
+<div class="noprint">
+  <b>L&F 引导牌</b> —— A5 纵向（亚克力牌面）。二维码默认指向
+  <input id="url" value="https://lf.xiaochangblog.dpdns.org/r" size="34">
+  <button onclick="draw()">重新生成</button><button onclick="window.print()">打印</button>
+</div>
+<div class="sign">
+  <div class="brand"><span class="logo">L&F</span><span class="b2">失物招领 · LOST &amp; FOUND</span></div>
+  <h1>捡到东西了？<small>扫码登记 · 30 秒完成 · 找到失主得积分</small></h1>
+  <div class="qr-box"><canvas id="qr"></canvas><div class="qr-cap">扫码打开 L&F</div></div>
+  <div class="steps">
+    <div><b>1</b> 手机扫码 → 拍照、写一个核验细节</div>
+    <div><b>2</b> 在 iPad 确认 → 放进分配的编号格</div>
+    <div><b>3</b> 被认领后积分自动到账</div>
+  </div>
+  <div class="foot">本牌位处粘贴于 L&F 投递柜旁 · 二维码指向登记页短链</div>
+</div>
+<script src="/js/vendor/qrcode.js"></script>
+<script>
+function draw() {
+  const url = document.getElementById('url').value.trim() || 'https://lf.xiaochangblog.dpdns.org/r';
+  const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+  const c = document.getElementById('qr');
+  const n = qr.getModuleCount(), cell = Math.floor(360 / n);
+  c.width = c.height = cell * n + 16;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = '#00458a';
+  for (let r = 0; r < n; r++) for (let col = 0; col < n; col++)
+    if (qr.isDark(r, col)) ctx.fillRect(8 + col * cell, 8 + r * cell, cell, cell);
+}
+draw();
+</script>
+</body></html>

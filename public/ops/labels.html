@@ -1,0 +1,40 @@
+<!doctype html><html lang="zh"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L&F · 格位标签（A4 打印）</title>
+<style>
+* { box-sizing: border-box; margin: 0; }
+body { font-family: "Lato", -apple-system, "PingFang SC", sans-serif; background: #eee; color: #202931; }
+.noprint { padding: 14px 20px; background: #00458a; color: #fff; font-size: 14px; }
+.noprint button { font: 600 14px/1 system-ui; padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; }
+.sheet { width: 210mm; margin: 8mm auto; background: #fff; padding: 6mm; display: grid;
+  grid-template-columns: 1fr 1fr; gap: 5mm; }
+.lbl { border: 1.2mm dashed #9db4cc; border-radius: 5mm; height: 44mm; position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1mm; }
+.lbl .no { font: 900 26mm/1 "IBM Plex Mono", ui-monospace, monospace; color: #00458a; letter-spacing: 2mm; }
+.lbl .cap { font: 700 4.2mm/1.4 "Lato", sans-serif; color: #394b58; letter-spacing: .8mm; }
+.lbl .brand { position: absolute; top: 2.5mm; left: 4mm; font: 900 3.6mm/1 "Lato", sans-serif; color: #00509f; }
+.lbl .use { position: absolute; bottom: 2.5mm; right: 4mm; font: 400 3mm/1 "Lato", sans-serif; color: #62696e; }
+@media print {
+  body { background: #fff; }
+  .noprint { display: none; }
+  .sheet { margin: 0; width: auto; padding: 4mm; }
+}
+</style></head><body>
+<div class="noprint">
+  <b>L&F 格位标签</b> —— A4 纵向、每页 12 张（对应 12 格投递柜）。打印后沿虚线剪下，贴到对应柜门。
+  <button onclick="window.print()">打印</button>
+</div>
+<div class="sheet" id="sheet"></div>
+<script>
+const s = document.getElementById('sheet');
+for (let i = 1; i <= 12; i++) {
+  const d = document.createElement('div');
+  d.className = 'lbl';
+  d.innerHTML = `<span class="brand">L&F</span>
+    <span class="no">${String(i).padStart(2, '0')}</span>
+    <span class="cap">失物格位 · SLOT</span>
+    <span class="use">物品请与系统登记一致</span>`;
+  s.appendChild(d);
+}
+</script>
+</body></html>

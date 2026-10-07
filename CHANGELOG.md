@@ -2,6 +2,22 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v1.0.0] - 2026-10-07
+
+### 新增
+- **完整实现**（对照设计文档 v0.2.0 全部 15 节）：
+  - 手机网页：公示列表（筛选/搜索/统计）、登记拾获三步（拍照去 Exif + 非公开特征）、认领申请（核验+冷冻期）、我的积分（学号分级查询）与积分商城
+  - iPad PWA：五态 kiosk（空闲/扫码输码/登记直办/认领核验/核销出库），动态分格大字指引，jsQR 本地扫码，出库拍照存证
+  - 隐藏后台 /admin.html：复核队列、异常黄标、积分调整、周看板
+  - API：/api/items·report·kiosk/*·claims·points·tips·rewards·photos/*·admin/*，全状态乐观锁，Cron 冷冻期结算
+  - 设计系统：学校门户同源 tokens（OKLCH hex 基准），Lato + PingFang SC + IBM Plex Mono 自托管，「格位牌 & 认领券」签名元素
+- **运维物料**：DEPLOY.md 部署指南、可打印 12 格位标签（ops/labels.html）、A5 引导牌（ops/signage.html）、/r 短链路由
+
+### 修复
+- 测试命令改为 `--experimental-test-isolation=none`（iSH 默认派生模式假绿灯）
+- 时间字段统一 UTC ISO（冷冻期跨时区解析偏差）
+- 认领非法学号返回 400 而非 500
+
 ## [v0.2.0] - 2026-10-07
 
 ### 新增

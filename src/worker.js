@@ -8,6 +8,7 @@ import { admin } from './api/admin.js';
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/r') return Response.redirect(new URL('/?from=qr', url).toString(), 302);  // 引导牌短链
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     const db = env.DB;
     try {
