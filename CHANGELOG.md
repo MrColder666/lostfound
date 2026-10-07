@@ -2,6 +2,11 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v1.0.1] - 2026-10-07
+
+### 修复
+- wrangler.jsonc 填入真实 D1 database_id（此前占位符导致 wrangler deploy 校验失败 10021，Worker 一直未被真正创建）
+
 ## [v1.0.0] - 2026-10-07
 
 ### 新增
