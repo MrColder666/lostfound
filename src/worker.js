@@ -1,5 +1,5 @@
 // src/worker.js —— /api 分发；其余回退 ASSETS；Cron 结算冷冻期
-import { listItems, getItem } from './api/items.js';
+import { listItems, getItem, listRewards, getPhoto } from './api/items.js';
 import { report } from './api/report.js';
 import { confirmDrop, verifyPickup, fulfill } from './api/kiosk.js';
 import { claims, settleFreeze } from './api/claims.js';
@@ -21,6 +21,8 @@ export default {
       if (m === 'POST' && url.pathname === '/api/kiosk/fulfill') return fulfill(db, env, request);
       if (m === 'POST' && url.pathname === '/api/claims') return claims(db, env, request);
       if (m === 'GET'  && seg[1] === 'points' && seg[2]) return pointsQuery(db, env, request, seg[2]);
+      if (m === 'GET'  && url.pathname === '/api/rewards') return listRewards(db, env, request);
+      if (m === 'GET'  && seg[1] === 'photos' && seg.length > 2) return getPhoto(db, env, request, seg.slice(2));
       if (m === 'POST' && url.pathname === '/api/tips') return tip(db, env, request);
       if (m === 'POST' && url.pathname === '/api/redemptions') return redeem(db, env, request);
       if (seg[1] === 'admin') return admin(db, env, request, request.headers.get('X-Admin-Token'));

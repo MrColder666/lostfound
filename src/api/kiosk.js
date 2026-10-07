@@ -1,6 +1,7 @@
 // src/api/kiosk.js —— 所有状态跃迁：UPDATE…WHERE 旧状态 + changes==1（§10 乐观锁）
 import { isExpired } from '../lib/codes.js';
 import { grantWithCap, monthKey } from '../lib/points.js';
+import { checkImage } from '../lib/image.js';
 const json = (o, s = 200) => Response.json(o, { status: s });
 const SLOT_COUNT = (env) => Number(env.SLOT_COUNT || 12);
 async function occupiedSlots(db) {
@@ -33,7 +34,23 @@ export async function verifyPickup(db, env, req) {
   return json({ ok: true, claim: row });
 }
 export async function fulfill(db, env, req) {
-  const { pickup_code } = await req.json();
+  // 支持两种通道：JSON {pickup_code} 或 multipart（pickup_code + 存证照片，§5.3-4 出库留痕）
+  const ct = req.headers.get('content-type') || '';
+  let pickup_code, evidencePath = null;
+  if (ct.includes('multipart/form-data')) {
+    const form = await req.formData();
+    pickup_code = String(form.get('pickup_code') ?? '').trim();
+    const file = form.get('photo');
+    if (file && typeof file === 'object') {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const chk = checkImage(bytes);
+      if (!chk.ok) return json({ ok: false, error: chk.error }, 400);
+      evidencePath = `evidence/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${chk.kind === 'png' ? 'png' : 'jpg'}`;
+      await env.PHOTOS?.put(evidencePath, bytes);
+    }
+  } else {
+    pickup_code = String((await req.json()).pickup_code ?? '').trim();
+  }
   // 修正：此处不按状态过滤——重复核销须落到 batch 乐观锁返回 409（带过滤会提前 404）
   const claim = await db.prepare(
     `SELECT c.*, i.id AS item_id, i.value_tier, i.registered_by, i.created_at AS in_stock_at
@@ -46,8 +63,8 @@ export async function fulfill(db, env, req) {
   const rs = await db.batch([
     db.prepare("UPDATE items SET status='returned', updated_at=datetime('now') WHERE id=? AND status IN ('in_stock','ready')")
       .bind(claim.item_id),
-    db.prepare("UPDATE claims SET status='fulfilled', fulfilled_at=datetime('now') WHERE id=? AND status IN ('approved','auto_approved')")
-      .bind(claim.id),
+    db.prepare("UPDATE claims SET status='fulfilled', fulfilled_at=datetime('now'), evidence_photo_path=COALESCE(?, evidence_photo_path) WHERE id=? AND status IN ('approved','auto_approved')")
+      .bind(evidencePath, claim.id),
   ]);
   if (rs.some(r => r.meta.changes !== 1)) return json({ ok: false, error: 'CONFLICT' }, 409);
   // 积分结算：月上限内发放（§5.2）

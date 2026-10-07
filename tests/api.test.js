@@ -218,3 +218,47 @@ test('修复回归：认领非法学号 → 400 BAD_STUDENT_ID（不再 500）',
   assert.equal(res.status, 400);
   assert.equal((await res.json()).error, 'BAD_STUDENT_ID');
 });
+
+// ---- 补口：商城目录 / 照片回显 / fulfill multipart 存证 ----
+import { listRewards, getPhoto } from '../src/api/items.js';
+test('GET /api/rewards 公开目录：仅 active=1', async () => {
+  const db = fakeDb(SCHEMA);
+  await db.prepare("INSERT INTO rewards(id,name,name_en,cost,stock,active) VALUES (1,'文具套装','Stationery',40,3,1),(2,'旧奖品','Old',10,5,0)").run();
+  const body = await (await listRewards(db, env, new Request('https://x/api/rewards'))).json();
+  assert.equal(body.ok, true);
+  assert.equal(body.rewards.length, 1);
+  assert.equal(body.rewards[0].name, '文具套装');
+});
+test('GET /api/photos/*：命中 200、未命中 404、未配置 PHOTOS 404、路径穿越 404', async () => {
+  const db = fakeDb(SCHEMA);
+  const photos = { get: async (k) => k === 'photos/a.jpg' ? { arrayBuffer: async () => new Uint8Array([0xFF, 0xD8, 0xFF]).buffer } : null };
+  const hit = await getPhoto(db, { PHOTOS: photos }, new Request('https://x/api/photos/photos/a.jpg'), ['photos', 'a.jpg']);
+  assert.equal(hit.status, 200);
+  assert.equal(hit.headers.get('content-type'), 'image/jpeg');
+  const miss = await getPhoto(db, { PHOTOS: photos }, new Request('https://x/api/photos/photos/z.jpg'), ['photos', 'z.jpg']);
+  assert.equal(miss.status, 404);
+  const nocfg = await getPhoto(db, {}, new Request('https://x/api/photos/photos/a.jpg'), ['photos', 'a.jpg']);
+  assert.equal(nocfg.status, 404);
+  const trav = await getPhoto(db, { PHOTOS: photos }, new Request('https://x/api/photos/photos/../x.jpg'), ['photos', '..', 'x.jpg']);
+  assert.equal(trav.status, 404);
+});
+test('fulfill multipart：存证照片写入 PHOTOS 且 evidence_photo_path 落库', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','李思远','7(3)')").run();
+  const reg = await (await report(db, env, await mkReport())).json();
+  await confirmDrop(db, env, jr({ drop_code: reg.drop_code }));
+  const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
+  await db.prepare(`INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_code,pickup_expires_at)
+    VALUES (?, '9031623', '白色胶带', 'approved', '472916', '2026-12-01T00:00:00Z')`).bind(itemId).run();
+  let storedKey = null;
+  const photos = { put: async (k) => { storedKey = k; }, get: async () => null };
+  const fd = new FormData();
+  fd.set('pickup_code', '472916');
+  fd.set('photo', new File([new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4])], 'ev.jpg', { type: 'image/jpeg' }));
+  const f1 = await fulfill(db, { PHOTOS: photos }, new Request('https://x/api/kiosk/fulfill', { method: 'POST', body: fd }));
+  assert.equal(f1.status, 200);
+  const c = await db.prepare("SELECT status, evidence_photo_path FROM claims WHERE pickup_code='472916'").first();
+  assert.equal(c.status, 'fulfilled');
+  assert.match(c.evidence_photo_path, /^evidence\//);
+  assert.match(storedKey, /^evidence\//);
+});
