@@ -3,7 +3,7 @@
   "name": "lostfound",
   "main": "src/worker.js",
   "compatibility_date": "2026-09-01",
-  "d1_databases": [{ "binding": "DB", "database_name": "lostfound", "database_id": "TO_BE_CREATED_ON_FIRST_DEPLOY" }],
+  "d1_databases": [{ "binding": "DB", "database_name": "lostfound", "database_id": "c735c00f-3f61-4360-b47b-375118b40dc8" }],
   "assets": { "directory": "public", "binding": "ASSETS" },
   "triggers": { "crons": ["*/5 * * * *"] },   // 冷冻期结算（T11 实现）
   "vars": { "SLOT_COUNT": "12", "FREEZE_MINUTES": "60", "DROP_TTL_MINUTES": "15", "PICKUP_TTL_HOURS": "48" }
