@@ -1,0 +1,24 @@
+/* Hallmark · route: custom (school-anchored) · genre: modern-minimal
+ * tokens: 单一来源；所有组件只允许 var(--*)，禁止内联色值
+ * 偏离声明：主蓝按学校门户惯例用作导航/主按钮实底（非 3% 点缀）——用户已批准 */
+:root {
+  --color-accent:   #00509F;  --color-accent-hover: #004C98;
+  --color-navy:     #00458A;  --color-bar: #005EBB;
+  --color-ink:      #202931;  --color-muted: #5E6B76;
+  --color-rule:     #D9E2EE;  --color-paper: #F2F6FB;  --color-surface: #FBFDFF;
+  --color-cyan:     #CAF0FE;  --color-cyan-soft: #E8F1FB;
+  --color-ok:       #1B7F3B;  --color-ok-soft: #E7F5EB;
+  --color-warn:     #9A6B00;  --color-warn-soft: #FBF3DC;
+  --color-danger:   #B3362B;  --color-danger-soft: #FBEAE8;
+  --font-ui:   "Lato", -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px;
+  --radius-card: 10px; --radius-btn: 8px; --radius-pill: 999px;
+  --shadow-card: 0 6px 18px rgba(0, 40, 90, .08);
+  --focus-ring: 0 0 0 3px rgba(0, 80, 159, .35);
+}
+@media (prefers-color-scheme: dark) { /* 手机端夜间微调：仅降低对比面，色相不变（§10 深色配方） */
+  :root { --color-paper: #141B26; --color-surface: #1B2432; --color-rule: #2C3A4C;
+          --color-ink: #EDF2F8; --color-muted: #9AA8B6; --color-cyan-soft: #16324A; }
+}
