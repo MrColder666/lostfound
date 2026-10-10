@@ -94,5 +94,45 @@ export async function admin(db, env, req, token) {
     await audit('item_reopen', `item:${item_id}${reason ? ':' + reason : ''}`);
     return json({ ok: true });
   }
+  // 兑换订单：待发放列表 + 近期已发放（运营按此发放实物）
+  if (req.method === 'GET' && url.pathname === '/api/admin/redemptions') {
+    const rows = await db.prepare(`
+      SELECT r.id, r.points_cost, r.status, r.created_at, r.fulfilled_at,
+             r.student_id, i.name AS student_name, i.class AS student_class,
+             w.name AS reward_name, w.icon AS reward_icon
+      FROM redemptions r
+        LEFT JOIN identities i ON i.student_id = r.student_id
+        LEFT JOIN rewards w ON w.id = r.reward_id
+      ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.created_at DESC
+      LIMIT 50`).all();
+    return json({ ok: true, redemptions: rows.results });
+  }
+  // 奖品目录（含下架项，供后台管理）
+  if (req.method === 'GET' && url.pathname === '/api/admin/rewards') {
+    const rows = await db.prepare('SELECT id, name, name_en, cost, stock, active, icon FROM rewards ORDER BY active DESC, cost').all();
+    return json({ ok: true, rewards: rows.results });
+  }
+  // 奖品新增/编辑（id 存在则更新）
+  if (req.method === 'POST' && url.pathname === '/api/admin/rewards') {
+    const b = await req.json();
+    const name = String(b.name || '').trim();
+    const cost = Number(b.cost), stock = Number(b.stock);
+    if (!name || !Number.isInteger(cost) || cost <= 0 || !Number.isInteger(stock) || stock < 0)
+      return json({ ok: false, error: 'BAD_FIELDS' }, 400);
+    const icon = String(b.icon || '').trim().slice(0, 8) || null;
+    const active = b.active === false ? 0 : 1;
+    const nameEn = String(b.name_en || name).trim();
+    if (b.id) {
+      const r = await db.prepare('UPDATE rewards SET name=?, name_en=?, cost=?, stock=?, active=?, icon=? WHERE id=?')
+        .bind(name, nameEn, cost, stock, active, icon, b.id).run();
+      if (r.meta.changes !== 1) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+      await audit('reward_update', `reward:${b.id}`);
+      return json({ ok: true, id: Number(b.id) });
+    }
+    const r = await db.prepare('INSERT INTO rewards(name,name_en,cost,stock,active,icon) VALUES (?,?,?,?,?,?)')
+      .bind(name, nameEn, cost, stock, active, icon).run();
+    await audit('reward_create', `reward:${r.meta.last_row_id}`);
+    return json({ ok: true, id: r.meta.last_row_id });
+  }
   return json({ ok: false, error: 'NOT_FOUND' }, 404);
 }

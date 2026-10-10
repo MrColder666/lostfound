@@ -1,6 +1,6 @@
 <!doctype html><html lang="zh"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>L&F · 格位标签（A4 打印）</title>
+<title>L&F · Slot labels (A4 print)</title>
 <style>
 * { box-sizing: border-box; margin: 0; }
 body { font-family: "Lato", -apple-system, "PingFang SC", sans-serif; background: #eee; color: #202931; }
@@ -21,8 +21,8 @@ body { font-family: "Lato", -apple-system, "PingFang SC", sans-serif; background
 }
 </style></head><body>
 <div class="noprint">
-  <b>L&F 格位标签</b> —— A4 纵向、每页 12 张（对应 12 格投递柜）。打印后沿虚线剪下，贴到对应柜门。
-  <button onclick="window.print()">打印</button>
+  <b>L&F slot labels</b> — A4 portrait, 12 labels per page (matches the 12-slot cabinet). Cut along the dashed lines and stick one on each slot door.
+  <button onclick="window.print()">Print</button>
 </div>
 <div class="sheet" id="sheet"></div>
 <script>
@@ -32,8 +32,8 @@ for (let i = 1; i <= 12; i++) {
   d.className = 'lbl';
   d.innerHTML = `<span class="brand">L&F</span>
     <span class="no">${String(i).padStart(2, '0')}</span>
-    <span class="cap">失物格位 · SLOT</span>
-    <span class="use">物品请与系统登记一致</span>`;
+    <span class="cap">LOST &amp; FOUND SLOT</span>
+    <span class="use">Keep items matching their registry entry</span>`;
   s.appendChild(d);
 }
 </script>

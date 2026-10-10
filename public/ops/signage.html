@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh"><head>
+<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>L&F · 引导牌（A5 打印）</title>
+<title>L&F · Desk sign (A5 print)</title>
 <style>
 * { box-sizing: border-box; margin: 0; }
 body { font-family: "Lato", -apple-system, "PingFang SC", sans-serif; background: #eee; color: #202931; }
@@ -22,7 +22,7 @@ h1 small { display: block; font: 700 5.5mm/1.6 "Lato", sans-serif; color: #caf0f
 .steps { margin-top: 8mm; display: grid; gap: 3.2mm; font: 500 4.6mm/1.5 "Lato", "PingFang SC", sans-serif; text-align: left; }
 .steps b { color: #caf0fe; font-family: "IBM Plex Mono", monospace; margin-right: 2.5mm; }
 .foot { margin-top: auto; width: 100%; border-top: .4mm solid rgba(255,255,255,.25); padding-top: 4mm;
-  font: 400 3.6mm/1.5 "Lato", "PingFang SC", sans-serif; opacity: .85; }
+  font: 400 3.6mm/1.5 "Lato", sans-serif; opacity: .85; }
 @media print {
   body { background: #fff; }
   .noprint { display: none; }
@@ -30,20 +30,20 @@ h1 small { display: block; font: 700 5.5mm/1.6 "Lato", sans-serif; color: #caf0f
 }
 </style></head><body>
 <div class="noprint">
-  <b>L&F 引导牌</b> —— A5 纵向（亚克力牌面）。二维码默认指向
+  <b>L&F desk sign</b> — A5 portrait (acrylic stand). The QR code points to
   <input id="url" value="https://lf.xiaochangblog.dpdns.org/r" size="34">
-  <button onclick="draw()">重新生成</button><button onclick="window.print()">打印</button>
+  <button onclick="draw()">Regenerate</button><button onclick="window.print()">Print</button>
 </div>
 <div class="sign">
-  <div class="brand"><span class="logo">L&F</span><span class="b2">失物招领 · LOST &amp; FOUND</span></div>
-  <h1>捡到东西了？<small>扫码登记 · 30 秒完成 · 找到失主得积分</small></h1>
-  <div class="qr-box"><canvas id="qr"></canvas><div class="qr-cap">扫码打开 L&F</div></div>
+  <div class="brand"><span class="logo">L&F</span><span class="b2">LOST &amp; FOUND</span></div>
+  <h1>Found something?<small>Scan to register · 30 seconds · earn points</small></h1>
+  <div class="qr-box"><canvas id="qr"></canvas><div class="qr-cap">Scan to open L&amp;F</div></div>
   <div class="steps">
-    <div><b>1</b> 手机扫码 → 拍照、写一个核验细节</div>
-    <div><b>2</b> 在 iPad 确认 → 放进分配的编号格</div>
-    <div><b>3</b> 被认领后积分自动到账</div>
+    <div><b>1</b> Scan with your phone → photo + one private detail</div>
+    <div><b>2</b> Drop the item in the numbered slot shown</div>
+    <div><b>3</b> Points are credited once it is claimed</div>
   </div>
-  <div class="foot">本牌位处粘贴于 L&F 投递柜旁 · 二维码指向登记页短链</div>
+  <div class="foot">Place next to the L&amp;F drop-off cabinet · QR opens the short registration link</div>
 </div>
 <script src="/js/vendor/qrcode.js"></script>
 <script>
