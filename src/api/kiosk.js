@@ -3,27 +3,8 @@ import { isExpired } from '../lib/codes.js';
 import { grantWithCap, monthKey } from '../lib/points.js';
 import { checkImage } from '../lib/image.js';
 const json = (o, s = 200) => Response.json(o, { status: s });
-const SLOT_COUNT = (env) => Number(env.SLOT_COUNT || 12);
 const normName = (s) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, '');
-async function occupiedSlots(db) {
-  const r = await db.prepare("SELECT slot_no FROM items WHERE slot_no IS NOT NULL AND status IN ('in_stock','claim_pending','ready')").all();
-  return new Set(r.results.map(x => x.slot_no));
-}
-export async function confirmDrop(db, env, req) {
-  const { drop_code } = await req.json();
-  const item = await db.prepare("SELECT id, drop_expires_at FROM items WHERE drop_code=? AND status='registered'").bind(drop_code).first();
-  if (!item) return json({ ok: false, error: 'VOUCHER_NOT_FOUND' }, 404);
-  if (isExpired(item.drop_expires_at)) return json({ ok: false, error: 'VOUCHER_EXPIRED' }, 410);
-  const used = await occupiedSlots(db);
-  for (let n = 1; n <= SLOT_COUNT(env); n++) {
-    if (used.has(n)) continue;
-    const r = await db.prepare(
-      `UPDATE items SET slot_no=?, status='in_stock', drop_code=NULL, drop_expires_at=NULL, updated_at=datetime('now')
-       WHERE id=? AND status='registered' AND slot_no IS NULL`).bind(n, item.id).run();
-    if (r.meta.changes === 1) return json({ ok: true, slot_no: n });   // 乐观锁成功即占格
-  }
-  return json({ ok: false, error: 'SLOTS_FULL' }, 507);
-}
+// 注：原 confirmDrop（投递凭证码）已按「全凭自觉」删除——登记即入库在 api/report.js 内一步完成
 // 身份查询：学号 + 姓名双匹配，返回该生待领取/审核中的认领（不含任何码）
 export async function lookupClaims(db, env, req) {
   const b = await req.json();

@@ -8,7 +8,7 @@ body.k-body {
 .mono { font-family: var(--font-mono); }
 .spacer { flex: 1; }
 
-.k-state { display: none; height: 100vh; flex-direction: column; }
+.k-state { display: none; height: 100vh; flex-direction: column; overflow-y: auto; }   /* 内容超高时可滚动（修复 kiosk 滑不动） */
 .k-state.is-active { display: flex; }
 [data-state="idle"] { background: var(--color-navy); color: var(--color-surface); }
 

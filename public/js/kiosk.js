@@ -112,32 +112,12 @@ function makePad(padSel, dispSel, submitSel) {
   };
 }
 
-/* ---------- 流程：凭证投递确认 ---------- */
-const scanPad = makePad('#scanPad', '#scanCode', '#scanSubmit');
-$('#scanSubmit').addEventListener('click', () => submitVoucher(scanPad.get()));
-function openVoucher() {
-  go('scan'); $('#scanTitle').textContent = t('k_drop_title');
-  scanPad.clear();
-  scanPad.onSubmit(submitVoucher);
-  startCam('#scanCam').then((ok) => { $('#scanCamHint').hidden = ok; if (ok) startScan('#scanCam', submitVoucher); });
-}
 let lastSlot = null, lastCode = '';
 function setSlot(n, code) {
   lastSlot = n; lastCode = code || '';
   $('#confirmSlot').textContent = t('k_slot') + ' ' + String(n).padStart(2, '0');
   $('#confirmCode').textContent = lastCode;
 }
-async function submitVoucher(code) {
-  const r = await api('/kiosk/confirm-drop', { method: 'POST', headers: JSONH, body: JSON.stringify({ drop_code: code }) });
-  if (r.status === 200 && r.body.ok) {
-    stopScan();
-    setSlot(r.body.slot_no, '');
-    go('confirm');
-  } else if (r.status === 410) { toast(t('k_toast_expired')); scanPad.clear(); }
-  else if (r.status === 507) { toast(t('k_toast_full')); scanPad.clear(); }
-  else { toast(t('k_toast_bad_code')); scanPad.clear(); }
-}
-
 /* ---------- 流程：登记直办 ---------- */
 const CAT_KEYS = ['electronics', 'card', 'clothing', 'book', 'other'];
 const COLOR_KEYS = ['k_col_black', 'k_col_white', 'k_col_blue', 'k_col_red', 'k_col_green', 'k_col_yellow', 'k_col_pink', 'k_col_multi'];
@@ -202,7 +182,7 @@ $('#btnReport').addEventListener('click', async () => {
   $('#repCamHint').textContent = ok ? t('k_cam_hint_ok') : t('k_cam_hint_bad');
   $('#repCamHint').hidden = ok;
 });
-function checkRep2() { $('#repTo3').disabled = !(repCat && repColor && repLoc && $('#repVerify').value.trim()); }
+function checkRep2() { $('#repTo3').disabled = !(repCat && repColor && repLoc); }   // 核验细节改为可选（全凭自觉，不做强制门槛）
 $('#repShot').addEventListener('click', async () => {
   if (camTarget !== '#repCam') { toast(t('k_toast_cam_not_ready')); return; }
   const blob = await grabBlob('#repCam');
@@ -230,10 +210,8 @@ $('#repSubmit').addEventListener('click', async () => {
     fd.set('via', 'kiosk');
     if (repPhoto) fd.set('photo', repPhoto);
     const reg = await (await api('/report', { method: 'POST', body: fd })).body;
-    if (!reg.ok) { toast(reg.error === 'BAD_STUDENT_ID' ? t('k_toast_bad_sid') : t('k_toast_reg_fail')); $('#repSubmit').disabled = false; return; }
-    const drop = await api('/kiosk/confirm-drop', { method: 'POST', headers: JSONH, body: JSON.stringify({ drop_code: reg.drop_code }) });
-    if (drop.status !== 200 || !drop.body.ok) { toast(drop.status === 507 ? t('k_toast_full_admin') : t('k_toast_drop_fail')); $('#repSubmit').disabled = false; return; }
-    setSlot(drop.body.slot_no, 'NO. ' + reg.code);
+    if (!reg.ok) { toast(reg.error === 'BAD_STUDENT_ID' ? t('k_toast_bad_sid') : reg.error === 'SLOTS_FULL' ? t('k_toast_full_admin') : t('k_toast_reg_fail')); $('#repSubmit').disabled = false; return; }
+    setSlot(reg.slot_no, 'NO. ' + reg.code);   // 登记即入库：格位在 /api/report 内一步分配
     go('confirm');
   } finally { $('#repSubmit').disabled = false; }
 });
@@ -377,7 +355,6 @@ async function doFulfill() {
 }
 
 /* ---------- 启动 ---------- */
-$('#btnVoucher').addEventListener('click', openVoucher);
 $('#btnPickup').addEventListener('click', openPickup);
 applyStaticTexts();
 netPaint();

@@ -24,7 +24,6 @@
         <span class="k-big-txt"><b data-i18n="k_lost_b">I lost something</b><small data-i18n="k_lost_s">Lost something · browse the board, verify on site</small></span>
         <span class="k-arrow">→</span>
       </button>
-      <button class="k-voucher" id="btnVoucher" type="button" data-i18n="k_voucher_cta">Have a voucher code on your phone? Confirm drop-off →</button>
       <button class="k-voucher" id="btnPickup" type="button" data-i18n="k_pickup_cta">Already approved? Collect it with your student ID →</button>
     </div>
     <aside class="k-side">
@@ -36,23 +35,6 @@
       </ol>
       <p class="k-thanks" data-i18n="k_thanks">Thank you for turning things in 🙏</p>
     </aside>
-  </div>
-</section>
-
-<!-- ② Scan / keypad -->
-<section class="k-state" data-state="scan">
-  <header class="k-top"><button class="k-back" data-go="idle" data-i18n="k_back" type="button">← Back</button><span class="k-title" id="scanTitle">Drop-off check-in</span><span class="spacer"></span></header>
-  <div class="k-scan-grid">
-    <div class="k-cam-wrap">
-      <video id="scanCam" autoplay playsinline muted></video>
-      <div class="k-cam-hint" id="scanCamHint" data-i18n="k_scan_hint">Hold the QR code up to the camera — it reads automatically</div>
-    </div>
-    <div class="k-keypad-wrap">
-      <div class="k-code-display mono" id="scanCode">······</div>
-      <div class="k-keypad" id="scanPad"></div>
-      <button class="k-btn k-primary" id="scanSubmit" disabled data-i18n="k_confirm" type="button">Confirm</button>
-      <p class="k-hint" data-i18n="k_pad_hint">Or type the 6 digits manually</p>
-    </div>
   </div>
 </section>
 

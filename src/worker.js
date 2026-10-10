@@ -1,7 +1,7 @@
 // src/worker.js —— /api 分发；其余回退 ASSETS；Cron 结算冷冻期
 import { listItems, getItem, listRewards, getPhoto } from './api/items.js';
 import { report } from './api/report.js';
-import { confirmDrop, verifyPickup, fulfill, lookupClaims } from './api/kiosk.js';
+import { verifyPickup, fulfill, lookupClaims } from './api/kiosk.js';
 import { claims, settleFreeze } from './api/claims.js';
 import { pointsQuery, tip, redeem } from './api/points.js';
 import { admin } from './api/admin.js';
@@ -17,7 +17,6 @@ export default {
       if (m === 'GET'  && url.pathname === '/api/items') return listItems(db, env, request);
       if (m === 'GET'  && seg[1] === 'items' && seg[2]) return getItem(db, env, request, seg[2]);
       if (m === 'POST' && url.pathname === '/api/report') return report(db, env, request);
-      if (m === 'POST' && url.pathname === '/api/kiosk/confirm-drop') return confirmDrop(db, env, request);
       if (m === 'POST' && url.pathname === '/api/kiosk/verify-pickup') return verifyPickup(db, env, request);
       if (m === 'POST' && url.pathname === '/api/kiosk/lookup-claims') return lookupClaims(db, env, request);
       if (m === 'POST' && url.pathname === '/api/kiosk/fulfill') return fulfill(db, env, request);

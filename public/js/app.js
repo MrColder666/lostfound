@@ -16,7 +16,7 @@ let lang = getLang();
 let countdownTimer = null;
 
 // —— 路由 ——
-const routes = { '#/': renderHome, '#/report': renderReport, '#/points': renderPoints };
+const routes = { '#/': renderHome, '#/report': renderReport, '#/points': renderPoints };   // 登记：手机登记即分配格位（全凭自觉）
 window.addEventListener('hashchange', router);
 function router() {
   if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
@@ -29,6 +29,26 @@ function router() {
   if (path.startsWith('#/claim/')) return renderClaim(path.slice('#/claim/'.length));
   (routes[path] || renderHome)(q);
 }
+// 导航按钮（非 <a> 的 tab/侧边栏）必须显式绑定路由——否则点击无反应
+document.querySelectorAll('[data-route]').forEach((b) => {
+  if (b.tagName !== 'A') b.addEventListener('click', () => { location.hash = b.dataset.route; });
+});
+
+// 微信内置浏览器提示（防封的正面做法：引导在系统浏览器打开，不做暗跳转）
+(function wechatBanner() {
+  try {
+    if (!/MicroMessenger/i.test(navigator.userAgent)) return;
+    if (sessionStorage.getItem('lf_wx_hint') === '1') return;
+    const bar = document.createElement('div');
+    bar.className = 'wx-banner';
+    bar.innerHTML = '<span>' + t('wx_banner') + '</span><button type="button" aria-label="dismiss">✕</button>';
+    bar.querySelector('button').addEventListener('click', () => {
+      sessionStorage.setItem('lf_wx_hint', '1');
+      bar.remove();
+    });
+    document.body.prepend(bar);
+  } catch { /* 提示失败不影响主流程 */ }
+})();
 
 // —— i18n ——
 function applyStaticTexts() {
@@ -69,8 +89,8 @@ async function renderHome(q) {
     + '<p class="hero-kicker">' + t('hero_kicker') + '</p>'
     + '<h2 class="hero-title">' + t('hero_title') + '</h2>'
     + '<p class="hero-sub">' + t('hero_sub') + '</p>'
-    + '<div class="hero-cta"><a class="btn btn-primary" href="#/report">' + t('cta_report') + '</a>'
-    + '<button class="btn btn-ghost" id="heroBrowse" type="button">' + t('cta_browse') + '</button></div>'
+    + '<div class="hero-cta"><button class="btn btn-primary" id="heroBrowse" type="button">' + t('cta_browse') + '</button></div>'
+    + '<p class="hero-note">' + t('hero_note_report') + '</p>'
     + '</section>';
   const how = cat ? '' : '<section class="how"><h3 class="sec-h">' + t('how_h') + '</h3><div class="how-grid">'
     + '<div class="how-card"><span class="how-n">1</span><b>' + t('how1_t') + '</b><p>' + t('how1_d') + '</p></div>'
@@ -93,96 +113,69 @@ async function renderHome(q) {
   });
 }
 
-// ============ 登记三步 ============
+// ============ 登记三步（全凭自觉：提交即分配格位，无凭证码；物品请自行放入对应格） ============
 function renderReport() {
   $view.innerHTML = `
   <h3>${t('report_title')}</h3>
   <form id="reportForm" class="rows">
     <div class="card"><div class="step">${t('report_step1')}</div>
-      <label class="field"><span>${t('f_photo')}</span>
-        <input type="file" id="f_photo" accept="image/*" capture="environment"></label>
-      <p class="muted">${t('f_photo_hint')}</p></div>
+      <input type="file" id="r_photo" accept="image/*" capture="environment">
+      <p class="muted" id="r_photo_note"></p></div>
     <div class="card"><div class="step">${t('report_step2')}</div>
-      <label class="field"><span>${t('f_title')}</span><input id="f_title" required maxlength="60"></label>
-      <label class="field"><span>${t('f_desc')}</span><textarea id="f_desc" maxlength="200"></textarea></label>
-      <label class="field"><span>${t('f_category')}</span>
-        <select id="f_category">${CATS.map((c) => `<option value="${c}">${t('cat_' + c)}</option>`).join('')}</select></label>
-      <label class="field"><span>${t('f_location')}</span><input id="f_location" required maxlength="60"></label></div>
+      <label class="field"><span>${t('report_f_title')}</span><input id="r_title" maxlength="40" required></label>
+      <label class="field"><span>${t('report_f_cat')}</span><select id="r_cat">${CATS.map((c) => `<option value="${c}">${t('cat_' + c)}</option>`).join('')}</select></label>
+      <label class="field"><span>${t('report_f_loc')}</span><input id="r_loc" maxlength="30" required></label>
+      <label class="field"><span>${t('report_f_desc')}</span><input id="r_desc" maxlength="80"></label>
+      <label class="field"><span>${t('report_f_verify')}</span><input id="r_verify" maxlength="60"></label></div>
     <div class="card"><div class="step">${t('report_step3')}</div>
-      <label class="field"><span>${t('f_verify_q')}</span><input id="f_verify_q" required maxlength="80"></label>
-      <p class="muted">${t('verify_hint')}</p>
-      <label class="field"><span>${t('f_verify_a')}</span><input id="f_verify_a" required maxlength="80"></label>
-      <p class="muted">${t('f_verify_a_hint')}</p>
-      <label class="field"><span>${t('f_student_id')}</span><input id="f_student_id" required inputmode="numeric" pattern="\\d{7}" maxlength="7"></label>
-      <label class="field"><span>${t('f_name')}</span><input id="f_name" required maxlength="20"></label>
-      <label class="field"><span>${t('f_class')}</span><input id="f_class" required maxlength="20"></label></div>
+      <label class="field"><span>${t('report_f_sid')}</span><input id="r_sid" inputmode="numeric" maxlength="7" placeholder="7 digits" required></label>
+      <label class="field"><span>${t('report_f_name')}</span><input id="r_name" maxlength="20" required></label>
+      <label class="field"><span>${t('report_f_class')}</span><input id="r_class" maxlength="10" required></label></div>
     <button class="btn btn-primary" type="submit">${t('report_submit')}</button>
     <div id="reportMsg"></div>
   </form>`;
   document.getElementById('reportForm').addEventListener('submit', submitReport);
 }
-
 async function submitReport(ev) {
   ev.preventDefault();
-  const $ = (id) => document.getElementById(id);
-  const msg = $('#reportMsg');
-  const f = new FormData();
-  f.set('title', $('#f_title').value.trim());
-  f.set('description', $('#f_desc').value.trim());
-  f.set('category', $('#f_category').value);
-  f.set('location', $('#f_location').value.trim());
-  f.set('verify_q', $('#f_verify_q').value.trim());
-  f.set('verify_a', $('#f_verify_a').value.trim());
-  f.set('student_id', $('#f_student_id').value.trim());
-  f.set('name', $('#f_name').value.trim());
-  f.set('class', $('#f_class').value.trim());
-  f.set('via', 'phone');
-  const photo = $('#f_photo').files[0];
-  if (photo) {
-    try { f.set('photo', await sanitize(photo)); }   // 唯一上传通道：Canvas 重绘去 Exif + 压缩
-    catch { /* 照片处理失败不阻塞登记，无图提交 */ }
-  }
-  if (!navigator.onLine) {   // 离线：草稿 + 待发队列，恢复网络自动补发
-    await idbPut('drafts', 'current', { form: f, savedAt: Date.now() });
-    await idbPut('queue', undefined, { url: '/api/report', opt: { method: 'POST', body: f } });
+  const msg = document.getElementById('reportMsg');
+  const sid = document.getElementById('r_sid').value.trim();
+  if (!/^\d{7}$/.test(sid)) { msg.innerHTML = `<p class="err">${t('err_bad_student_id')}</p>`; return; }
+  const fd = new FormData();
+  fd.set('title', document.getElementById('r_title').value.trim());
+  fd.set('description', document.getElementById('r_desc').value.trim());
+  fd.set('category', document.getElementById('r_cat').value);
+  fd.set('location', document.getElementById('r_loc').value.trim());
+  fd.set('student_id', sid);
+  fd.set('name', document.getElementById('r_name').value.trim());
+  fd.set('class', document.getElementById('r_class').value.trim());
+  const vq = document.getElementById('r_verify').value.trim();
+  if (vq) { fd.set('verify_q', 'Please describe a detail only the owner would know'); fd.set('verify_a', vq); }
+  const file = document.getElementById('r_photo').files[0];
+  if (file) { try { fd.set('photo', await sanitize(file)); } catch { /* 图片处理失败则不附照片 */ } }
+  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
+  if (!navigator.onLine) {   // 离线：入队，恢复后自动补发（IndexedDB，不用 localStorage）
+    await idbPut('queue', undefined, { url: '/api/report', body: [...fd.entries()] });
     msg.innerHTML = `<p class="warn-note">${t('report_offline_note')}</p>`;
     return;
   }
-  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
-  const { status, body } = await api('/report', { method: 'POST', body: f });
-  if (status === 200 && body.ok) return renderVoucher(body);
-  msg.innerHTML = errBox(body.error);
+  const { status, body } = await api('/report', { method: 'POST', body: fd });
+  if (status === 200 && body.ok) { renderReportDone(body); return; }
+  msg.innerHTML = `<p class="err">${errBox(body.error, t('report_failed'))}</p>`;
 }
-
-function renderVoucher({ code, drop_code, drop_expires_at }) {
-  const end = new Date(drop_expires_at).getTime();
+function renderReportDone(body) {
   $view.innerHTML = `
   <div class="ticket">
-    <div class="ticket-head"><strong>${t('voucher_title')}</strong><span class="slot-tag">${t('voucher_code_label')} ${esc(code)}</span></div>
+    <div class="ticket-head"><strong>${t('report_done_title')}</strong><span class="slot-tag">${esc(body.code)}</span></div>
     <div class="ticket-body">
-      <div class="code-big">${esc(drop_code)}</div>
-      <p class="muted">${t('voucher_hint')}</p>
+      <div class="slot-big">${t('slot_label')} ${String(body.slot_no).padStart(2, '0')}</div>
+      <p class="muted">${t('report_done_hint')}</p>
       <div class="ticket-perf"></div>
-      <p>${t('voucher_countdown')} <span class="countdown" id="cd">--:--</span></p>
-      <p class="muted"><a href="#/">${t('back_home')}</a></p>
+      <p class="muted">${t('report_done_foot')}</p>
     </div>
-  </div>`;
-  const cd = document.getElementById('cd');
-  const tick = () => {
-    const s = Math.max(0, Math.floor((end - Date.now()) / 1000));
-    if (s === 0) { cd.textContent = t('voucher_expired'); return clearInterval(countdownTimer); }
-    cd.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-  };
-  tick(); countdownTimer = setInterval(tick, 1000);
+  </div>
+  <a class="btn btn-primary" href="#/">${t('report_done_back')}</a>`;
 }
-
-// —— 离线补发（简报骨架逐字）——
-async function flushQueue() { for (const job of await idbAll('queue')) { try {
-    await fetch(job.url, job.opt).then((r) => { if (r.ok) idbDel('queue', job.id); }); } catch {} } }
-window.addEventListener('online', flushQueue);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) flushQueue(); }); // iOS 降级补发
-
-// ============ 认领 ============
 async function renderClaim(id) {
   $view.innerHTML = `<p class="muted">${t('loading')}</p>`;
   const { status, body } = await api('/items/' + encodeURIComponent(id));

@@ -57,12 +57,21 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
   <div id="app" class="hidden">
     <div class="tabs">
       <button data-tab="review" aria-pressed="true">Review Queue</button>
+      <button data-tab="handouts" aria-pressed="false">Handouts</button>
       <button data-tab="risk" aria-pressed="false">Risk Flags</button>
       <button data-tab="ops" aria-pressed="false">Operations</button>
     </div>
 
     <div id="tab-review">
       <div id="queue"></div>
+    </div>
+
+    <div id="tab-handouts" class="hidden">
+      <div class="card">
+        <h3>Recent handouts</h3>
+        <p class="muted">Revoke a points payout, or put an item back on the board if something went wrong.</p>
+        <div id="handouts"></div>
+      </div>
     </div>
 
     <div id="tab-risk" class="hidden">
@@ -109,7 +118,7 @@ $('#logout').addEventListener('click', () => { sessionStorage.removeItem('lf_adm
 $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   $$('.tabs button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
   b.setAttribute('aria-pressed', 'true');
-  ['review', 'risk', 'ops'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  ['review', 'handouts', 'risk', 'ops'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
 }));
 
 async function boot() {

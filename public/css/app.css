@@ -145,3 +145,13 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
   .grid > .card:nth-child(6) { animation-delay: .25s; }
 }
 @keyframes lf-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* 登记完成票券：大号格位数字（与 kiosk 格位牌同一视觉语言） */
+.slot-big { font: 800 44px/1.15 var(--font-mono); color: var(--color-navy); letter-spacing: 4px; margin: 6px 0 10px; }
+
+/* 微信内置浏览器提示条（防封：引导在系统浏览器打开） */
+.wx-banner { position: sticky; top: 0; z-index: 60; display: flex; gap: 10px; align-items: center;
+  background: var(--color-warn-soft); color: var(--color-warn); border-bottom: 1px solid var(--color-rule);
+  font: 600 12.5px/1.5 var(--font-ui); padding: 9px 12px; }
+.wx-banner span { flex: 1; }
+.wx-banner button { background: transparent; border: none; color: inherit; font: 700 14px var(--font-ui); cursor: pointer; padding: 2px 6px; }
