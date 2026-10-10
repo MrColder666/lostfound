@@ -35,9 +35,10 @@ body { font-family: var(--font-ui); background: var(--color-paper); color: var(-
 .tabbar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--color-surface);
           border-top: 1px solid var(--color-rule); display: flex; justify-content: space-around;
           padding: 8px 0 10px; }
-.tabbar .fab { width: 48px; height: 48px; border-radius: 50%; background: var(--color-accent);
-               color: var(--color-surface); margin-top: -18px; border: 3px solid var(--color-paper);
-               font: 800 12px var(--font-ui); display: grid; place-items: center; }
+.tabbar .fab { width: auto; min-width: 48px; height: 48px; padding: 0 16px; border-radius: var(--radius-pill);
+               background: var(--color-accent); color: var(--color-surface); margin-top: -18px;
+               border: 3px solid var(--color-paper); font: 800 13px/1 var(--font-ui);
+               display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
 /* 大屏适配（§9.3）：≥768 双列；≥1024 网格三列 + 侧栏 */
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 @media (min-width: 768px)  { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -155,3 +156,18 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
   font: 600 12.5px/1.5 var(--font-ui); padding: 9px 12px; }
 .wx-banner span { flex: 1; }
 .wx-banner button { background: transparent; border: none; color: inherit; font: 700 14px var(--font-ui); cursor: pointer; padding: 2px 6px; }
+
+/* 积分商城：网格与卡片（沿用 tokens，无新色） */
+.shop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-3); }
+@media (min-width: 768px)  { .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .shop-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.shop-card { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-card);
+  padding: var(--space-3); display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow-card); }
+.shop-card.is-out { opacity: .55; }
+.shop-ico { width: 100%; aspect-ratio: 3 / 2; border-radius: 8px; background: var(--color-cyan-soft);
+  display: grid; place-items: center; font-size: 34px; }
+.shop-name { font: 700 14px/1.35 var(--font-ui); color: var(--color-ink); }
+.shop-meta { display: flex; align-items: baseline; gap: 8px; font: 600 12px var(--font-ui); color: var(--color-muted); }
+.shop-cost { font: 700 15px var(--font-mono); color: var(--color-navy); }
+.shop-card .btn { margin-top: auto; }
+.shop-need { font: 600 11.5px var(--font-ui); color: var(--color-warn); }

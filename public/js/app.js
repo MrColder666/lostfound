@@ -16,7 +16,7 @@ let lang = getLang();
 let countdownTimer = null;
 
 // —— 路由 ——
-const routes = { '#/': renderHome, '#/report': renderReport, '#/points': renderPoints };   // 登记：手机登记即分配格位（全凭自觉）
+const routes = { '#/': renderHome, '#/report': renderReport, '#/points': renderPoints, '#/shop': renderShop };   // 登记：手机登记即分配格位（全凭自觉）
 window.addEventListener('hashchange', router);
 function router() {
   if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
@@ -240,6 +240,96 @@ function renderPickupVoucher({ pickup_code, pickup_expires_at }) {
   </div>`;
 }
 
+// ============ 积分商城（Rewards shop） ============
+let shopState = { sid: '', name: '', balance: null };
+let shopCatalog = [];
+async function renderShop(q) {
+  const preSid = q?.get('sid') || '';
+  $view.innerHTML = `
+  <h3>${t('shop_title')}</h3>
+  <p class="muted">${t('shop_sub')}</p>
+  <div class="card">
+    <label class="field"><span>${t('points_id_label')}</span>
+      <input id="s_sid" inputmode="numeric" pattern="\\d{7}" maxlength="7" value="${esc(preSid)}" placeholder="7 digits"></label>
+    <label class="field"><span>${t('points_name_label')}</span><input id="s_name" maxlength="20" placeholder="Name"></label>
+    <div class="actions"><button class="btn btn-primary" id="s_check">${t('shop_check')}</button></div>
+    <div id="s_msg"></div>
+  </div>
+  <div id="shopGrid" class="shop-grid"></div>
+  <div id="shopMsg"></div>
+  <div id="shopOrders"></div>`;
+  document.getElementById('s_check').addEventListener('click', checkShopIdentity);
+  document.getElementById('s_name').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkShopIdentity(); });
+  await loadShop();
+  if (preSid && /^\d{7}$/.test(preSid)) checkShopIdentity();
+}
+async function checkShopIdentity() {
+  const sid = document.getElementById('s_sid').value.trim();
+  const name = document.getElementById('s_name').value.trim();
+  const msg = document.getElementById('s_msg');
+  if (!/^\d{7}$/.test(sid)) { msg.innerHTML = errBox('BAD_STUDENT_ID', t('err_bad_student_id')); return; }
+  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
+  const { status, body } = await api(`/points/${sid}${name ? `?name=${encodeURIComponent(name)}` : ''}`);
+  if (status === 404) { msg.innerHTML = errBox('NOT_FOUND', t('points_not_found')); return; }
+  if (status === 403) { msg.innerHTML = errBox('FORBIDDEN', t('points_forbidden')); return; }
+  if (!body.ok) { msg.innerHTML = errBox(body.error); return; }
+  shopState = { sid, name, balance: body.total };
+  msg.innerHTML = `<div class="statbar"><span>${t('shop_balance')}: <b class="mono">${body.total}</b></span><span>${t('shop_returns')}: ${body.contributions}</span></div>`;
+  renderShopOrders(body.redemptions || []);
+  loadShop();
+}
+function renderShopOrders(list) {
+  const box = document.getElementById('shopOrders');
+  if (!box) return;
+  const rows = list.length
+    ? list.map((r) => `<div class="ledger-row"><span>${esc(r.name)} · ${r.points_cost}${t('mall_cost')}</span><span class="status ${r.status === 'pending' ? 'status-warn' : 'status-ok'}">${t('redeem_status_' + r.status) || r.status}</span></div>`).join('')
+    : `<p class="muted">${t('shop_no_orders')}</p>`;
+  box.innerHTML = `<div class="card"><h3>${t('shop_my_orders')}</h3>${rows}</div>`;
+}
+async function loadShop() {
+  const grid = document.getElementById('shopGrid');
+  if (!grid) return;
+  const { body } = await api('/rewards').catch(() => ({ body: {} }));
+  shopCatalog = Array.isArray(body.rewards) ? body.rewards : [];
+  if (!shopCatalog.length) { grid.innerHTML = `<p class="muted">${t('shop_empty')}</p>`; return; }
+  grid.innerHTML = shopCatalog.map((r) => {
+    const out = r.stock <= 0;
+    const short = shopState.balance !== null && shopState.balance < r.cost;
+    const need = short ? `${t('shop_need_more')} ${r.cost - shopState.balance}` : '';
+    return `<div class="shop-card${out ? ' is-out' : ''}">
+      <div class="shop-ico">${esc(r.icon || '🎁')}</div>
+      <div class="shop-name">${esc(r.name)}</div>
+      <div class="shop-meta"><span class="shop-cost">${r.cost}</span><span>${t('mall_cost')} · ${t('shop_stock_left')} ${r.stock}</span></div>
+      ${need ? `<div class="shop-need">${need}</div>` : ''}
+      <button class="btn btn-primary" data-rid="${r.id}" ${out || short ? 'disabled' : ''}>${out ? t('shop_sold_out') : t('shop_redeem')}</button>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('[data-rid]').forEach((b) => b.addEventListener('click', () => redeemReward(Number(b.dataset.rid))));
+}
+async function redeemReward(rid) {
+  const msg = document.getElementById('shopMsg');
+  if (!shopState.sid) { msg.innerHTML = errBox('UNAUTHORIZED', t('shop_check')); return; }
+  const rw = shopCatalog.find((x) => x.id === rid);
+  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
+  const { status, body } = await api('/redemptions', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ student_id: shopState.sid, reward_id: rid }) });
+  if (status === 200 && body.ok) {
+    msg.innerHTML = `
+    <div class="ticket">
+      <div class="ticket-head"><strong>${t('shop_order_title')}</strong><span class="slot-tag">#${body.redemption_id}</span></div>
+      <div class="ticket-body">
+        <div class="slot-big">${esc(rw ? rw.name : '')}</div>
+        <p class="muted">${t('shop_order_pending')} · -${rw ? rw.cost : ''}${t('mall_cost')}</p>
+        <div class="ticket-perf"></div>
+        <p class="muted">${t('shop_order_collect')}</p>
+      </div>
+    </div>`;
+    checkShopIdentity();
+    return;
+  }
+  msg.innerHTML = errBox(body.error, t('error_generic'));
+}
+
 // ============ 我的积分 ============
 async function renderPoints(q) {
   const preSid = q?.get('sid') || '';
@@ -293,40 +383,10 @@ function renderPointsFull(sid, body) {
     <div class="card"><h3>${t('points_ledger_title')}</h3>${ledger}</div>
     ${redemptions ? `<div class="card"><h3>${t('redeem_ok')}</h3>${redemptions}</div>` : ''}
     <div class="card" id="mall"></div>`;
-  loadMall(sid);
+  document.getElementById('p_detail').insertAdjacentHTML('beforeend',
+    `<div class="card"><a class="btn btn-primary" href="#/shop?sid=${sid}">${t('points_go_shop')}</a></div>`);
 }
 
-async function loadMall(sid) {
-  const box = document.getElementById('mall');
-  if (!box) return;
-  const { body } = await api('/rewards').catch(() => ({ status: 404, body: {} }));
-  if (body.ok && Array.isArray(body.rewards) && body.rewards.length) {
-    box.innerHTML = `<h3>${t('points_redeem_title')}</h3>` + body.rewards.map((r) =>
-      `<div class="ledger-row"><span>${esc(r.name)} · ${r.cost}${t('mall_cost')} · ${t('mall_stock')} ${r.stock}</span>
-       <button class="btn btn-ghost" data-rid="${r.id}">${t('mall_redeem')}</button></div>`).join('') + `<div id="mallMsg"></div>`;
-  } else {   // 契约现实：worker 未提供公开目录接口 → 退化为按编号兑换
-    box.innerHTML = `<h3>${t('points_redeem_title')}</h3><p class="muted">${t('mall_fallback')}</p>
-      <label class="field"><span>${t('mall_reward_id')}</span><input id="m_rid" inputmode="numeric"></label>
-      <div class="actions"><button class="btn btn-ghost" id="m_go">${t('mall_redeem')}</button></div><div id="mallMsg"></div>`;
-    box.querySelector('#m_go').addEventListener('click', () => {
-      const rid = Number(box.querySelector('#m_rid').value);
-      if (rid) doRedeem(sid, rid);
-    });
-    return;
-  }
-  box.querySelectorAll('[data-rid]').forEach((b) => b.addEventListener('click', () => doRedeem(sid, Number(b.dataset.rid))));
-}
-
-async function doRedeem(sid, rewardId) {
-  const msg = document.getElementById('mallMsg');
-  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
-  const { status, body } = await api('/redemptions', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ student_id: sid, reward_id: rewardId }),
-  });
-  if (status === 200 && body.ok) msg.innerHTML = `<p class="ok-note">${t('redeem_ok')} · ${t('redeem_id_label')} #${body.redemption_id}</p>`;
-  else msg.innerHTML = errBox(body.error, t('error_generic'));
-}
 
 // —— 公示入口错误态（保留统计条/筛选，顶部提示）——
 function renderHomeish(message) {
