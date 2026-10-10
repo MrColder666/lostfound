@@ -16,7 +16,9 @@ let lang = getLang();
 let countdownTimer = null;
 
 // —— 路由 ——
-const routes = { '#/': renderHome, '#/report': renderReport, '#/points': renderPoints, '#/shop': renderShop };   // 登记：手机登记即分配格位（全凭自觉）
+const routes = { '#/': renderHome, '#/report': renderReport, '#/shop': renderShop };
+// 导航：积分页已合并进商城；旧链接 #/points 自动跳转
+const REDIRECTS = { '#/points': '#/shop' };
 window.addEventListener('hashchange', router);
 function router() {
   if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
@@ -27,6 +29,11 @@ function router() {
   document.querySelectorAll('.tabbar [data-route], .gnav [data-route]').forEach((b) =>
     b.setAttribute('aria-pressed', String(b.dataset.route === path)));
   if (path.startsWith('#/claim/')) return renderClaim(path.slice('#/claim/'.length));
+  if (REDIRECTS[path]) {   // 合并后保留旧链接可用
+    const sid = q.get('sid');
+    location.hash = REDIRECTS[path] + (sid ? '?sid=' + sid : '');
+    return;
+  }
   (routes[path] || renderHome)(q);
 }
 // 导航按钮（非 <a> 的 tab/侧边栏）必须显式绑定路由——否则点击无反应
@@ -109,7 +116,7 @@ async function renderHome(q) {
   const go = $view.querySelector('#asideGo');
   if (go) go.addEventListener('click', () => {
     const sid = $view.querySelector('#asideSid').value.trim();
-    if (/^\d{7}$/.test(sid)) location.hash = `#/points?sid=${sid}`;
+    if (/^\d{7}$/.test(sid)) location.hash = `#/shop?sid=${sid}`;   // 合并后：查积分 → 商城页
   });
 }
 
@@ -255,6 +262,8 @@ async function renderShop(q) {
     <div class="actions"><button class="btn btn-primary" id="s_check">${t('shop_check')}</button></div>
     <div id="s_msg"></div>
   </div>
+  <div id="shopStats"></div>
+  <div id="shopLedger"></div>
   <div id="shopGrid" class="shop-grid"></div>
   <div id="shopMsg"></div>
   <div id="shopOrders"></div>`;
@@ -274,9 +283,24 @@ async function checkShopIdentity() {
   if (status === 403) { msg.innerHTML = errBox('FORBIDDEN', t('points_forbidden')); return; }
   if (!body.ok) { msg.innerHTML = errBox(body.error); return; }
   shopState = { sid, name, balance: body.total };
-  msg.innerHTML = `<div class="statbar"><span>${t('shop_balance')}: <b class="mono">${body.total}</b></span><span>${t('shop_returns')}: ${body.contributions}</span></div>`;
+  msg.innerHTML = '';
+  const stats = document.getElementById('shopStats');
+  if (stats) stats.innerHTML = `<div class="statbar"><span>${t('shop_balance')}: <b class="mono">${body.total}</b></span><span>${t('shop_returns')}: ${body.contributions}</span></div>`;
+  renderShopLedger(body);
   renderShopOrders(body.redemptions || []);
   loadShop();
+}
+function renderShopLedger(body) {
+  const box = document.getElementById('shopLedger');
+  if (!box) return;
+  if (!body.ledger) {   // 未做二次校验（只输了学号）→ 提示补姓名
+    box.innerHTML = `<div class="card"><h3>${t('points_ledger_title')}</h3><p class="muted">${t('points_expand')}</p></div>`;
+    return;
+  }
+  const rows = body.ledger.length
+    ? body.ledger.map((r) => `<div class="ledger-row"><span>${t('reason_' + r.reason) || r.reason} · ${fmtDate(r.created_at)}</span><span class="delta">${r.delta > 0 ? '+' : ''}${r.delta}</span></div>`).join('')
+    : `<p class="muted">${t('points_ledger_empty')}</p>`;
+  box.innerHTML = `<div class="card"><h3>${t('points_ledger_title')}</h3>${rows}</div>`;
 }
 function renderShopOrders(list) {
   const box = document.getElementById('shopOrders');
@@ -330,71 +354,3 @@ async function redeemReward(rid) {
   msg.innerHTML = errBox(body.error, t('error_generic'));
 }
 
-// ============ 我的积分 ============
-async function renderPoints(q) {
-  const preSid = q?.get('sid') || '';
-  $view.innerHTML = `
-  <h3>${t('points_title')}</h3>
-  <div class="card">
-    <label class="field"><span>${t('points_id_label')}</span>
-      <input id="p_sid" inputmode="numeric" pattern="\\d{7}" maxlength="7" value="${esc(preSid)}"></label>
-    <div class="actions"><button class="btn btn-primary" id="p_query">${t('points_query')}</button></div>
-    <div id="p_msg"></div>
-  </div>
-  <div id="p_detail"></div>`;
-  document.getElementById('p_query').addEventListener('click', () => {
-    const sid = document.getElementById('p_sid').value.trim();
-    if (/^\d{7}$/.test(sid)) queryPoints(sid, '');
-  });
-  document.getElementById('p_sid').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('p_query').click(); });
-  if (preSid && /^\d{7}$/.test(preSid)) queryPoints(preSid, '');
-}
-
-async function queryPoints(sid, name) {
-  const msg = document.getElementById('p_msg'); const detail = document.getElementById('p_detail');
-  if (!msg) return;
-  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
-  const { status, body } = await api(`/points/${sid}${name ? `?name=${encodeURIComponent(name)}` : ''}`);
-  if (status === 404) { msg.innerHTML = errBox('NOT_FOUND', t('points_not_found')); detail.innerHTML = ''; return; }
-  if (status === 403) { msg.innerHTML = errBox('FORBIDDEN', t('points_forbidden')); detail.innerHTML = ''; return; }
-  if (!body.ok) { msg.innerHTML = errBox(body.error); return; }
-  msg.innerHTML = `
-    <div class="statbar"><span>${t('points_total')}: ${body.total}</span><span>${t('points_contrib')}: ${body.contributions}</span></div>`;
-  if (body.ledger) return renderPointsFull(sid, body);
-  detail.innerHTML = `
-    <div class="card"><h3>${t('points_expand')}</h3>
-      <label class="field"><span>${t('points_name_label')}</span><input id="p_name" maxlength="20"></label>
-      <button class="btn btn-ghost" id="p_expand">${t('points_query')}</button>
-      <div id="p_expandMsg"></div></div>`;
-  document.getElementById('p_expand').addEventListener('click', () => {
-    const nm = document.getElementById('p_name').value.trim();
-    if (!nm) return;
-    queryPoints(sid, nm).then(() => {});   // 403 时在 msg 区提示姓名不匹配
-  });
-}
-
-function renderPointsFull(sid, body) {
-  const ledger = body.ledger.length
-    ? body.ledger.map((r) => `<div class="ledger-row"><span>${t('reason_' + r.reason) || r.reason} · ${fmtDate(r.created_at)}</span><span class="delta">${r.delta > 0 ? '+' : ''}${r.delta}</span></div>`).join('')
-    : `<p class="muted">${t('points_ledger_empty')}</p>`;
-  const redemptions = (body.redemptions || []).map((r) =>
-    `<div class="ledger-row"><span>${esc(r.name)} · ${r.points_cost}${t('mall_cost')}</span><span>${t('redeem_status_' + r.status) || r.status}</span></div>`).join('');
-  document.getElementById('p_detail').innerHTML = `
-    <div class="card"><h3>${t('points_ledger_title')}</h3>${ledger}</div>
-    ${redemptions ? `<div class="card"><h3>${t('redeem_ok')}</h3>${redemptions}</div>` : ''}
-    <div class="card" id="mall"></div>`;
-  document.getElementById('p_detail').insertAdjacentHTML('beforeend',
-    `<div class="card"><a class="btn btn-primary" href="#/shop?sid=${sid}">${t('points_go_shop')}</a></div>`);
-}
-
-
-// —— 公示入口错误态（保留统计条/筛选，顶部提示）——
-function renderHomeish(message) {
-  $view.innerHTML = `<div class="card"><p class="empty">${esc(message)}</p><p class="muted" style="text-align:center"><a href="#/">${t('back_home')}</a></p></div>`;
-}
-
-// —— Service Worker ——
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
-
-applyStaticTexts();
-router();

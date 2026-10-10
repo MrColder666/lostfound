@@ -109,7 +109,7 @@ const ZH = {
   points_forbidden: '姓名不匹配，无法查看明细',
   points_total: '当前积分',
   points_contrib: '成功找回次数',
-  points_ledger_title: '积分明细',
+  points_ledger_title: '积分明细（最近 50 条）',
   points_ledger_empty: '暂无积分记录',
   points_redeem_title: '积分商城',
   reason_claim_reward: '找回奖励', reason_tip_in: '收到打赏', reason_tip_out: '打赏他人', reason_redeem: '商城兑换', reason_adjust: '管理员调整',
