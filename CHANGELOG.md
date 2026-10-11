@@ -2,6 +2,17 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v1.5.1] - 2026-10-11
+
+### 变更
+- **后台移除 Review Queue（Approve / Reject）**：全凭自觉下认领当场自动通过，人工审批界面已无意义，直接删掉
+- **Handouts 标签接线**：最近出库记录列表 + 每行「Revoke points」（撤回积分）与「Put back on board」（放回公示板）
+- **Risk Flags 标签**：说明改为「被动信号，不拦截任何流程」，每条物品黄标附「Put back on board」动作
+- 后台标签收敛为：Handouts（默认）· Risk Flags · Operations
+
+### 修复
+- 线上历史遗留的 2 条 `in_review` 认领已按全凭自觉补结算（发领取码 + 物品转 ready 预留给认领人）
+
 ## [v1.5.0] - 2026-10-11
 
 ### 变更

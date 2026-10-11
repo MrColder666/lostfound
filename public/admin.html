@@ -56,14 +56,9 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
 
   <div id="app" class="hidden">
     <div class="tabs">
-      <button data-tab="review" aria-pressed="true">Review Queue</button>
-      <button data-tab="handouts" aria-pressed="false">Handouts</button>
+      <button data-tab="handouts" aria-pressed="true">Handouts</button>
       <button data-tab="risk" aria-pressed="false">Risk Flags</button>
       <button data-tab="ops" aria-pressed="false">Operations</button>
-    </div>
-
-    <div id="tab-review">
-      <div id="queue"></div>
     </div>
 
     <div id="tab-handouts" class="hidden">
@@ -75,7 +70,11 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
     </div>
 
     <div id="tab-risk" class="hidden">
-      <div class="card"><h3>Unresolved flags</h3><div id="flags"></div></div>
+      <div class="card">
+        <h3>Risk flags</h3>
+        <p class="muted">Passive signals only — nothing is blocked. Inspect, then use the actions below if something looks wrong.</p>
+        <div id="flags"></div>
+      </div>
     </div>
 
     <div id="tab-ops" class="hidden">
@@ -129,44 +128,60 @@ $('#logout').addEventListener('click', () => { sessionStorage.removeItem('lf_adm
 $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   $$('.tabs button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
   b.setAttribute('aria-pressed', 'true');
-  ['review', 'handouts', 'risk', 'ops'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  ['handouts', 'risk', 'ops'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
 }));
 
 async function boot() {
   $('#gate').classList.add('hidden');
   $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
-  await Promise.all([loadQueue(), loadOps()]);
+  await Promise.all([loadHandouts(), loadFlags(), loadOps()]);
 }
-async function loadQueue() {
+async function loadHandouts() {
+  const r = await api('/admin/handouts');
+  if (r.status !== 200) { $('#handouts').innerHTML = '<p class="muted">Unavailable</p>'; return; }
+  const list = r.body.handouts || [];
+  $('#handouts').innerHTML = list.length ? list.map((h) => {
+    const when = String(h.fulfilled_at || '').slice(0, 16).replace('T', ' ');
+    return '<div class="row" style="align-items:flex-start">'
+      + '<div style="flex:1">'
+      + '<b>' + esc(h.title) + '</b> <span class="mono muted">' + esc(h.code) + ' · slot ' + (h.slot_no ?? '—') + '</span><br>'
+      + '<span class="muted">Claimant: ' + esc(h.claimant_name || '') + ' ' + esc(h.claimant_class || '') + ' · Finder: ' + esc(h.finder_name || '') + '</span><br>'
+      + '<span class="muted mono">' + esc(when) + '</span>'
+      + '</div>'
+      + '<div class="row" style="margin:0">'
+      + '<span class="tag' + (h.revoked ? ' warn' : '') + '">' + (h.revoked ? 'Points revoked' : '+' + h.granted + ' pts') + '</span>'
+      + (h.revoked ? '' : '<button data-revoke="' + h.claim_id + '">Revoke points</button>')
+      + (h.item_status === 'returned' ? '<button class="danger" data-reopen="' + h.item_id + '">Put back on board</button>' : '<span class="muted">on board</span>')
+      + '</div></div>';
+  }).join('') : '<p class="muted">No handouts yet.</p>';
+  $$('#handouts [data-revoke]').forEach((b) => b.addEventListener('click', async () => {
+    const rr = await api('/admin/points/revoke', { method: 'POST', body: JSON.stringify({ claim_id: Number(b.dataset.revoke) }) });
+    toast(rr.status === 200 ? 'Points revoked (' + rr.body.revoked_points + ')' : rr.status === 409 ? 'Already revoked' : 'Failed');
+    loadHandouts();
+  }));
+  $$('#handouts [data-reopen]').forEach((b) => b.addEventListener('click', async () => {
+    const rr = await api('/admin/items/reopen', { method: 'POST', body: JSON.stringify({ item_id: Number(b.dataset.reopen), reason: 'admin review' }) });
+    toast(rr.status === 200 ? 'Item is back on the board' : 'Failed');
+    loadHandouts();
+  }));
+}
+async function loadFlags() {
   const r = await api('/admin/queue');
-  if (r.status !== 200) return;
-  const q = r.body.queue || [];
-  $('#queue').innerHTML = q.length ? q.map((c) =>
-    '<div class="card">'
-    + '<div class="row" style="margin:0 0 6px">'
-    + '<span class="tag">' + esc(c.value_tier === 'high' ? 'High value' : 'Standard') + '</span>'
-    + '<b>' + esc(c.title) + '</b> <span class="mono muted">' + esc(c.code) + '</span>'
-    + '<span class="spacer"></span>'
-    + '<span class="muted">Claimant: ' + esc(c.claimant_name) + ' ' + esc(c.claimant_class) + ' (student ID visible to staff only)</span>'
-    + '</div>'
-    + '<p class="muted">Verify question: ' + esc(c.verify_q ?? '—') + ' | Claimant answer: <b style="color:var(--color-ink)">' + esc(c.verify_answer ?? '—') + '</b></p>'
-    + '<div class="row">'
-    + '<button class="primary" data-approve="' + c.id + '">Approve · issue pickup code</button>'
-    + '<button class="danger" data-reject="' + c.id + '">Reject</button>'
-    + '<span class="muted mono">' + esc(String(c.created_at).slice(0, 16).replace('T', ' ')) + '</span>'
-    + '</div></div>').join('') : '<div class="card muted">The review queue is empty ✅</div>';
-  $$('#queue [data-approve]').forEach((b) => b.addEventListener('click', () => review(b.dataset.approve, 'approve')));
-  $$('#queue [data-reject]').forEach((b) => b.addEventListener('click', () => review(b.dataset.reject, 'reject')));
-  $('#flags').innerHTML = (r.body.flags || []).length
-    ? '<table><tr><th>Object</th><th>Reason</th><th>Time</th></tr>' + r.body.flags.map((f) =>
-      '<tr><td class="mono">' + esc(f.subject_type) + '#' + esc(f.subject_id) + '</td><td><span class="tag warn">' + esc(f.reason) + '</span></td><td class="mono muted">' + esc(String(f.created_at).slice(0, 16).replace('T', ' ')) + '</td></tr>').join('') + '</table>'
+  if (r.status !== 200) { $('#flags').innerHTML = '<p class="muted">Unavailable</p>'; return; }
+  const flags = r.body.flags || [];
+  $('#flags').innerHTML = flags.length
+    ? '<table><tr><th>Object</th><th>Signal</th><th>Time</th><th></th></tr>' + flags.map((f) =>
+      '<tr><td class="mono">' + esc(f.subject_type) + '#' + esc(f.subject_id) + '</td>'
+      + '<td><span class="tag warn">' + esc(f.reason) + '</span></td>'
+      + '<td class="mono muted">' + esc(String(f.created_at).slice(0, 16).replace('T', ' ')) + '</td>'
+      + '<td>' + (f.subject_type === 'item' ? '<button data-reopen-flag="' + esc(f.subject_id) + '">Put back on board</button>' : '') + '</td></tr>').join('') + '</table>'
     : '<p class="muted">No flags ✅</p>';
-}
-async function review(id, decision) {
-  const r = await api('/admin/review', { method: 'POST', body: JSON.stringify({ claim_id: Number(id), decision }) });
-  if (r.status === 200) { toast(decision === 'approve' ? 'Approved. Pickup code ' + r.body.pickup_code : 'Rejected. Item is back on the board'); loadQueue(); }
-  else toast('Operation failed');
+  $$('#flags [data-reopen-flag]').forEach((b) => b.addEventListener('click', async () => {
+    const rr = await api('/admin/items/reopen', { method: 'POST', body: JSON.stringify({ item_id: Number(b.dataset.reopenFlag), reason: 'risk flag review' }) });
+    toast(rr.status === 200 ? 'Item is back on the board' : 'Only items already handed out can be put back');
+    loadFlags();
+  }));
 }
 async function loadOps() {
   const s = await api('/admin/stats');
