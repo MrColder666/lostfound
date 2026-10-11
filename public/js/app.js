@@ -404,3 +404,8 @@ async function redeemReward(rid) {
   msg.innerHTML = errBox(body.error, t('error_generic'));
 }
 
+
+// —— 启动 ——（修复：此前缺初始路由，首次打开无 # 的 URL 时空白，只能点导航触发 hashchange）
+applyStaticTexts();
+router();
+flushQueue();
