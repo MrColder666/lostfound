@@ -56,6 +56,20 @@ document.querySelectorAll('[data-route]').forEach((b) => {
   } catch { /* 提示失败不影响主流程 */ }
 })();
 
+// 公告栏（后台 Settings 可开关）
+(async () => {
+  try {
+    const r = await fetch('/api/site');
+    const b = await r.json();
+    if (b.ok && b.notice_on && b.notice) {
+      const bar = document.createElement('div');
+      bar.className = 'notice-bar';
+      bar.textContent = b.notice;
+      document.body.prepend(bar);
+    }
+  } catch { /* 公告失败不影响主流程 */ }
+})();
+
 // —— i18n ——
 function applyStaticTexts() {
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });

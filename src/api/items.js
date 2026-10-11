@@ -1,4 +1,5 @@
 // src/api/items.js —— 公开字段白名单，唯一出口
+import { getSettings } from '../lib/settings.js';
 const PUBLIC = 'id, code, title, description, category, location, photo_path, slot_no, value_tier, status, found_at, verify_q';
 export async function listItems(db, env, req) {
   const url = new URL(req.url);
@@ -35,4 +36,10 @@ export async function getPhoto(db, env, req, parts) {
   if (!obj) return Response.json({ ok: false, error: 'NOT_FOUND' }, { status: 404 });
   const type = rel.endsWith('.png') ? 'image/png' : 'image/jpeg';
   return new Response(await obj.arrayBuffer(), { headers: { 'content-type': type, 'cache-control': 'public, max-age=86400' } });
+}
+
+// 公开站点信息：公告栏（v1.7.0）
+export async function siteInfo(db) {
+  const st = await getSettings(db);
+  return Response.json({ ok: true, notice: st.notice || '', notice_on: st.notice_on === '1' });
 }

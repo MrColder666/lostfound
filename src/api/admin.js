@@ -3,6 +3,7 @@ import { monthKey } from '../lib/points.js';
 import { blocked, bump } from '../lib/guard.js';
 import { sha256Hex } from '../lib/hash.js';
 import { f2aEnabled, webauthnRoutes } from './admin-webauthn.js';
+import { getSettings, setSettings, DEFAULTS } from '../lib/settings.js';
 const json = (o, s = 200) => Response.json(o, { status: s });
 export async function admin(db, env, req, token) {
   token = token || req.headers.get('X-Admin-Token');
@@ -172,6 +173,72 @@ export async function admin(db, env, req, token) {
       await audit('identity_update', `${sid}:${name || '-'}:${cls || '-'}`);
     }
     return json({ ok: true });
+  }
+  // —— 参数设置（v1.7.0：把「能改的」都变成「能调的」）——
+  if (req.method === 'GET' && url.pathname === '/api/admin/settings') {
+    return json({ ok: true, settings: await getSettings(db), defaults: DEFAULTS });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/admin/settings') {
+    const b = await req.json();
+    const LIMITS = { slots: [1, 99], pickup_ttl_hours: [1, 720], claim_active_cap: [1, 99], claim_daily_cap: [1, 99],
+                     reward_normal: [0, 999], reward_high: [0, 999], month_cap: [0, 9999], snatch_min: [0, 1440] };
+    const clean = {};
+    for (const [k, v] of Object.entries(b || {})) {
+      if (!(k in DEFAULTS)) continue;
+      if (k === 'notice') { clean[k] = String(v).slice(0, 300); continue; }
+      if (k === 'notice_on') { clean[k] = String(v) === '1' || v === true ? '1' : '0'; continue; }
+      const n = Number(v);
+      const [lo, hi] = LIMITS[k] || [0, 99999];
+      if (!Number.isInteger(n) || n < lo || n > hi) return json({ ok: false, error: 'BAD_FIELDS', key: k }, 400);
+      clean[k] = String(n);
+    }
+    await setSettings(db, clean);
+    await audit('settings_update', Object.keys(clean).join(','));
+    return json({ ok: true, settings: await getSettings(db) });
+  }
+  // —— 物品管理：全状态列表 + 编辑/下架 ——
+  if (req.method === 'GET' && url.pathname === '/api/admin/items') {
+    const q = (url.searchParams.get('q') || '').trim();
+    const status = (url.searchParams.get('status') || '').trim();
+    const like = '%' + q + '%';
+    const rows = await db.prepare(`SELECT i.id, i.code, i.title, i.category, i.location, i.slot_no, i.status, i.value_tier,
+        i.photo_path, i.created_at, i.registered_by, id2.name AS finder_name, id2.class AS finder_class
+      FROM items i LEFT JOIN identities id2 ON id2.student_id=i.registered_by
+      WHERE (? = '' OR i.code LIKE ? OR i.title LIKE ?) AND (? = '' OR i.status = ?)
+      ORDER BY i.id DESC LIMIT 100`).bind(q, like, like, status, status).all();
+    return json({ ok: true, items: rows.results });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/admin/items') {
+    const b = await req.json();
+    const it = await db.prepare('SELECT * FROM items WHERE id=?').bind(b.id).first();
+    if (!it) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+    const title = String(b.title ?? it.title).trim().slice(0, 40);
+    const category = String(b.category ?? it.category).trim();
+    const location = String(b.location ?? it.location).trim().slice(0, 40);
+    if (!title || !category || !location) return json({ ok: false, error: 'BAD_FIELDS' }, 400);
+    let slot = b.slot_no === undefined || b.slot_no === '' ? it.slot_no : Number(b.slot_no);
+    if (slot !== null && (!Number.isInteger(slot) || slot < 1 || slot > 99)) return json({ ok: false, error: 'BAD_SLOT' }, 400);
+    if (slot !== null && slot !== it.slot_no) {
+      const clash = await db.prepare("SELECT COUNT(*) c FROM items WHERE slot_no=? AND status IN ('in_stock','claim_pending','ready') AND id<>?").bind(slot, it.id).first();
+      if (clash.c > 0) return json({ ok: false, error: 'SLOT_TAKEN' }, 409);
+    }
+    let status = it.status;
+    if (b.status && ['in_stock', 'voided'].includes(b.status) && b.status !== it.status) {
+      if (b.status === 'voided' && !['registered', 'in_stock', 'claim_pending'].includes(it.status)) return json({ ok: false, error: 'BAD_TRANSITION' }, 409);
+      if (b.status === 'in_stock' && !['registered', 'voided'].includes(it.status)) return json({ ok: false, error: 'BAD_TRANSITION' }, 409);
+      status = b.status;
+    }
+    await db.prepare("UPDATE items SET title=?, category=?, location=?, slot_no=?, status=?, updated_at=datetime('now') WHERE id=?")
+      .bind(title, category, location, slot, status, it.id).run();
+    await audit('item_update', `item:${it.id}:${status}`);
+    return json({ ok: true });
+  }
+  // —— 积分流水（导出用）——
+  if (req.method === 'GET' && url.pathname === '/api/admin/ledger') {
+    const rows = await db.prepare(`SELECT l.id, l.student_id, i.name AS student_name, l.delta, l.reason, l.ref_type, l.ref_id, l.month_key, l.created_at
+      FROM points_ledger l LEFT JOIN identities i ON i.student_id=l.student_id
+      ORDER BY l.id DESC LIMIT 500`).all();
+    return json({ ok: true, ledger: rows.results });
   }
   // —— 审计日志 ——
   if (req.method === 'GET' && url.pathname === '/api/admin/audit') {

@@ -494,3 +494,113 @@ test('过期释放：超时未领取 → 物品回公示板、认领单 expired�
   assert.equal((await db.prepare('SELECT status FROM items WHERE id=5').first()).status, 'in_stock');
   assert.equal((await db.prepare('SELECT status FROM claims WHERE item_id=5').first()).status, 'expired');
 });
+
+// ---- v1.7.0：设置系统 / 站点公告 / 物品管理 / 会话与 Passkey ----
+import { getSettings, setSettings } from '../src/lib/settings.js';
+import { issueChallenge, verifyAssertion, derToRaw, b64u } from '../src/lib/webauthn.js';
+import { siteInfo } from '../src/api/items.js';
+test('settings：默认值 + 覆盖；report 格位数跟随设置', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await setSettings(db, { slots: 2 });
+  const st = await getSettings(db);
+  assert.equal(st.slots, '2');
+  assert.equal(st.reward_normal, '10');                    // 未覆盖 → 默认
+  const r1 = await (await report(db, env, await mkReport())).json();
+  assert.equal(r1.slot_no, 1);
+  const r2 = await (await report(db, env, await mkReport())).json();
+  assert.equal(r2.slot_no, 2);
+  const r3 = await report(db, env, await mkReport());
+  assert.equal(r3.status, 507);                            // 2 格已满
+});
+test('site：公告栏开关与内容', async () => {
+  const db = fakeDb(SCHEMA);
+  const off = await (await siteInfo(db)).json();
+  assert.equal(off.notice_on, false);
+  await setSettings(db, { notice: 'Exams week!', notice_on: '1' });
+  const on = await (await siteInfo(db)).json();
+  assert.equal(on.notice_on, true);
+  assert.equal(on.notice, 'Exams week!');
+});
+test('admin/settings：白名单校验 + 越界拒绝', async () => {
+  const db = fakeDb(SCHEMA);
+  const bad = await admin(db, env, adminCall('/api/admin/settings', 'POST', { slots: 999 }), 'T0KEN');
+  assert.equal(bad.status, 400);
+  const ok = await admin(db, env, adminCall('/api/admin/settings', 'POST', { slots: 8, reward_high: 30 }), 'T0KEN');
+  assert.equal(ok.status, 200);
+  const st = await (await admin(db, env, adminReq('/api/admin/settings'))).json();
+  assert.equal(st.settings.slots, '8'); assert.equal(st.settings.reward_high, '30');
+});
+test('admin/items：编辑 + 下架/恢复 + 格位冲突 409', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO items(id,code,title,category,location,status,registered_by,registered_via,found_at,slot_no) VALUES (1,'LF-A','Old title','other','x','in_stock','9031622','phone','2026-10-01T00:00:00Z',1)").run();
+  await db.prepare("INSERT INTO items(id,code,title,category,location,status,registered_by,registered_via,found_at,slot_no) VALUES (2,'LF-B','B','other','y','in_stock','9031622','phone','2026-10-01T00:00:00Z',2)").run();
+  const clash = await admin(db, env, adminCall('/api/admin/items', 'POST', { id: 1, slot_no: 2 }), 'T0KEN');
+  assert.equal(clash.status, 409);                          // 2 号格被占
+  const edit = await admin(db, env, adminCall('/api/admin/items', 'POST', { id: 1, title: 'New title' }), 'T0KEN');
+  assert.equal(edit.status, 200);
+  assert.equal((await db.prepare('SELECT title FROM items WHERE id=1').first()).title, 'New title');
+  await admin(db, env, adminCall('/api/admin/items', 'POST', { id: 2, status: 'voided' }), 'T0KEN');
+  assert.equal((await db.prepare('SELECT status FROM items WHERE id=2').first()).status, 'voided');
+  await admin(db, env, adminCall('/api/admin/items', 'POST', { id: 2, status: 'in_stock' }), 'T0KEN');
+  assert.equal((await db.prepare('SELECT status FROM items WHERE id=2').first()).status, 'in_stock');
+  const list = await (await admin(db, env, adminReq('/api/admin/items?status=in_stock'))).json();
+  assert.equal(list.items.length, 2);
+});
+test('admin/ledger：流水导出端点', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES ('9031622',10,'claim_reward','2026-10')").run();
+  const r = await (await admin(db, env, adminReq('/api/admin/ledger'))).json();
+  assert.equal(r.ledger.length, 1);
+  assert.equal(r.ledger[0].student_name, 'Alex Wang');
+});
+const derFromRaw = (raw) => {   // 测试辅助：P1363 → DER
+  const enc = (u8) => { let i = 0; while (i < u8.length - 1 && u8[i] === 0) i++; let v = u8.slice(i); if (v[0] & 0x80) v = Uint8Array.from([0, ...v]); return [0x02, v.length, ...v]; };
+  const r = enc(raw.slice(0, 32)), s = enc(raw.slice(32));
+  return Uint8Array.from([0x30, r.length + s.length, ...r, ...s]);
+};
+test('Passkey：断言验签全链路（真签名）+ 各类拒绝路径', async () => {
+  const db = fakeDb(SCHEMA);
+  const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const jwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+  await db.prepare("INSERT INTO webauthn_creds(id,public_jwk,alg,sign_count) VALUES ('cred1',?,-7,0)").bind(JSON.stringify(jwk)).run();
+  const mk = async (origin) => {
+    const challenge = await issueChallenge(db, 'login');
+    const cd = JSON.stringify({ type: 'webauthn.get', challenge, origin });
+    const cdB = new TextEncoder().encode(cd);
+    const ad = new Uint8Array(37);
+    ad.set(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('lf.xiaochangblog.dpdns.org'))), 0);
+    ad[32] = 0x01;   // UP
+    const signed = new Uint8Array([...ad, ...new Uint8Array(await crypto.subtle.digest('SHA-256', cdB))]);
+    const rawSig = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, kp.privateKey, signed));
+    return { id: 'cred1', authenticatorData: b64u.encode(ad), clientDataJSON: b64u.encode(cdB), signature: b64u.encode(derFromRaw(rawSig)) };
+  };
+  const good = await mk('https://lf.xiaochangblog.dpdns.org');
+  assert.equal((await verifyAssertion(db, good)).ok, true);
+  assert.equal((await verifyAssertion(db, good)).ok, false);              // 挑战一次性：已用
+  const badOrigin = await mk('https://evil.example.com');
+  assert.equal((await verifyAssertion(db, badOrigin)).error, 'BAD_ORIGIN');
+  const tampered = await mk('https://lf.xiaochangblog.dpdns.org');
+  tampered.signature = b64u.encode(derFromRaw(new Uint8Array(64).fill(1)));
+  assert.equal((await verifyAssertion(db, tampered)).error, 'BAD_SIGNATURE');
+  const noCred = { ...(await mk('https://lf.xiaochangblog.dpdns.org')), id: 'missing' };
+  assert.equal((await verifyAssertion(db, noCred)).error, 'CRED_NOT_FOUND');
+});
+test('derToRaw：P1363 ↔ DER 往返一致', async () => {
+  const raw = Uint8Array.from({ length: 64 }, (_, i) => (i * 7 + 3) % 256);
+  const back = derToRaw(derFromRaw(raw));
+  assert.deepEqual([...back], [...raw]);
+});
+test('2FA 门：有凭据后口令单独失效，会话令牌与 login-options 可用', async () => {
+  const db = fakeDb(SCHEMA);
+  const { createSession } = await import('../src/lib/webauthn.js');
+  await db.prepare("INSERT INTO webauthn_creds(id,public_jwk,alg) VALUES ('c1','{}',-7)").run();
+  const passOnly = await admin(db, env, adminReq('/api/admin/stats'), 'T0KEN');
+  assert.equal(passOnly.status, 401);
+  assert.equal((await passOnly.json()).error, 'NEED_2FA');
+  const opts = await admin(db, env, new Request('https://x/api/admin/webauthn/login-options', { method: 'POST', headers: { 'X-Admin-Token': 'T0KEN' } }), 'T0KEN');
+  assert.equal(opts.status, 200);                                        // 口令可进 2FA 端点
+  assert.equal((await opts.json()).allowCredentials[0].id, 'c1');
+  const sess = await createSession(db);
+  const withSession = await admin(db, env, adminReq('/api/admin/stats', sess), '');
+  assert.equal(withSession.status, 200);                                 // 会话令牌全量可用
+});

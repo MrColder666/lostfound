@@ -5,6 +5,7 @@ import { pickupExpiry } from '../lib/codes.js';
 import { evaluate } from '../lib/risk.js';
 import { upsertIdentitySafe, pinGate } from '../lib/identity.js';
 import { claimAllowance, prune } from '../lib/guard.js';
+import { getSettings } from '../lib/settings.js';
 const json = (o, s = 200) => Response.json(o, { status: s });
 export async function claims(db, env, req) {
   const b = await req.json();
@@ -16,18 +17,19 @@ export async function claims(db, env, req) {
   if (!idn.ok) return json({ ok: false, error: idn.error }, 403);
   const gate = await pinGate(db, sid, b.pin);
   if (!gate.ok) return json({ ok: false, error: gate.error }, gate.status);
-  const allow = await claimAllowance(db, sid, { activeCap: Number(env.CLAIM_ACTIVE_CAP || 3), dailyCap: Number(env.CLAIM_DAILY_CAP || 5) });
+  const st = await getSettings(db);
+  const allow = await claimAllowance(db, sid, { activeCap: Number(st.claim_active_cap || 3), dailyCap: Number(st.claim_daily_cap || 5) });
   if (!allow.ok) return json({ ok: false, error: allow.error }, 429);
   // 被动风控：只记黄标，不再拦截（admin 事后干预）
   const latencyMin = (Date.now() - new Date(item.created_at).getTime()) / 60000;
   const othersOnItem = (await db.prepare("SELECT COUNT(*) c FROM claims WHERE item_id=? AND status IN ('approved','auto_approved')").bind(item.id).first()).c;
-  for (const reason of evaluate({ latencyMin, freezeCompeting: othersOnItem >= 1 }))
+  for (const reason of evaluate({ latencyMin, freezeCompeting: othersOnItem >= 1 }, { snatchMin: Number(st.snatch_min || 10) }))
     await db.prepare("INSERT INTO risk_flags(subject_type,subject_id,reason) VALUES ('item',?,?)").bind(String(item.id), reason).run();
   // 当场自动通过；不再发领取码（到服务台凭学号+姓名+PIN 领取）
   const iso = new Date().toISOString();
   const r = await db.prepare(`INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_expires_at,created_at)
     VALUES (?,?,?,'auto_approved',?,?)`)
-    .bind(item.id, sid, String(b.verify_answer ?? '').slice(0, 200), pickupExpiry(new Date(), Number(env.PICKUP_TTL_HOURS || 48)), iso).run();
+    .bind(item.id, sid, String(b.verify_answer ?? '').slice(0, 200), pickupExpiry(new Date(), Number(st.pickup_ttl_hours || 48)), iso).run();
   await db.prepare("UPDATE items SET status='ready' WHERE id=? AND status IN ('in_stock','claim_pending')").bind(item.id).run();
   const row = await db.prepare("SELECT id, status, pickup_expires_at FROM claims WHERE id=?").bind(r.meta.last_row_id ?? 1).first();
   return json({ ok: true, ...row });

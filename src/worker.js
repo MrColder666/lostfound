@@ -1,5 +1,5 @@
 // src/worker.js —— /api 分发；其余回退 ASSETS；Cron 结算冷冻期
-import { listItems, getItem, listRewards, getPhoto } from './api/items.js';
+import { listItems, getItem, listRewards, getPhoto, siteInfo } from './api/items.js';
 import { report } from './api/report.js';
 import { fulfill, lookupClaims } from './api/kiosk.js';
 import { claims, settleFreeze } from './api/claims.js';
@@ -22,6 +22,7 @@ export default {
       if (m === 'POST' && url.pathname === '/api/claims') return claims(db, env, request);
       if (m === 'GET'  && seg[1] === 'points' && seg[2]) return pointsQuery(db, env, request, seg[2]);
       if (m === 'GET'  && url.pathname === '/api/rewards') return listRewards(db, env, request);
+      if (m === 'GET'  && url.pathname === '/api/site') return siteInfo(db);
       if (m === 'GET'  && seg[1] === 'photos' && seg.length > 2) return getPhoto(db, env, request, seg.slice(2));
       if (m === 'POST' && url.pathname === '/api/tips') return tip(db, env, request);
       if (m === 'POST' && url.pathname === '/api/redemptions') return redeem(db, env, request);

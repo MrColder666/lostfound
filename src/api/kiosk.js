@@ -5,6 +5,7 @@ import { grantWithCap, monthKey } from '../lib/points.js';
 import { checkImage } from '../lib/image.js';
 import { normalize } from '../lib/verify.js';
 import { pinGate } from '../lib/identity.js';
+import { getSettings } from '../lib/settings.js';
 const json = (o, s = 200) => Response.json(o, { status: s });
 // 身份查询：学号 + 姓名 + PIN → 返回该生待领取的认领（不含任何码）
 export async function lookupClaims(db, env, req) {
@@ -37,8 +38,9 @@ async function completeHandout(db, env, claim, evidencePath) {
   ]);
   if (rs.some(r => r.meta.changes !== 1)) return json({ ok: false, error: 'CONFLICT' }, 409);
   const mk = monthKey(now.toISOString());
+  const st = await getSettings(db);
   const agg = await db.prepare("SELECT COALESCE(SUM(delta),0) AS t FROM points_ledger WHERE student_id=? AND month_key=?").bind(claim.registered_by, mk).first();
-  const { delta, capped } = grantWithCap({ monthTotal: agg.t, want: claim.value_tier === 'high' ? 25 : 10, cap: 100 });
+  const { delta, capped } = grantWithCap({ monthTotal: agg.t, want: claim.value_tier === 'high' ? Number(st.reward_high || 25) : Number(st.reward_normal || 10), cap: Number(st.month_cap || 100) });
   if (delta > 0)
     await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,ref_type,ref_id,month_key) VALUES (?,?,'claim_reward','claim',?,?)")
       .bind(claim.registered_by, delta, claim.id, mk).run();

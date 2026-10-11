@@ -16,12 +16,12 @@ button.primary { background: var(--color-accent); border-color: var(--color-acce
 button.danger { background: transparent; border-color: var(--color-danger); color: var(--color-danger); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 button:is(:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
-input { font: 400 15px var(--font-ui); border: 1.5px solid var(--color-rule); border-radius: var(--radius-btn);
+input, textarea, select { font: 400 15px var(--font-ui); border: 1.5px solid var(--color-rule); border-radius: var(--radius-btn);
   padding: 10px 12px; background: var(--color-surface); color: var(--color-ink); }
-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--color-accent); }
+input:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--color-accent); }
 .card { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-card);
   padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow-card); }
-.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .tabs button[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
 .grid2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; }
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
@@ -38,6 +38,9 @@ h3 { font: 800 15px var(--font-ui); margin-bottom: 8px; }
 table { width: 100%; border-collapse: collapse; }
 td, th { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--color-rule); font-size: 14px; vertical-align: top; }
 th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform: uppercase; letter-spacing: .04em; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.fgrid label { display: grid; gap: 4px; font: 600 12.5px var(--font-ui); color: var(--color-muted); }
+.small { padding: 6px 10px; font-size: 13px; }
 </style>
 </head><body>
 <div class="wrap">
@@ -48,7 +51,7 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
 
   <div id="gate" class="card">
     <h3>Enter admin passphrase</h3>
-    <p class="muted">The passphrase is the access credential. It stays in this browser only (sessionStorage).</p>
+    <p class="muted">Passphrase + device passkey (Touch ID / Face ID) when 2FA is on. Stored in this browser session only.</p>
     <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
     <button class="primary" id="enter" style="width:100%">Enter</button>
     <p class="muted" id="gateErr" style="margin-top:8px"></p>
@@ -57,22 +60,24 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
   <div id="app" class="hidden">
     <div class="tabs">
       <button data-tab="handouts" aria-pressed="true">Handouts</button>
-      <button data-tab="risk" aria-pressed="false">Risk Flags</button>
+      <button data-tab="flags" aria-pressed="false">Risk Flags</button>
       <button data-tab="ops" aria-pressed="false">Operations</button>
+      <button data-tab="settings" aria-pressed="false">Settings</button>
+      <button data-tab="manage" aria-pressed="false">Manage</button>
     </div>
 
     <div id="tab-handouts" class="hidden">
       <div class="card">
-        <h3>Recent handouts</h3>
+        <div class="row"><h3 style="flex:1">Recent handouts</h3><button data-csv="handouts" class="small">Export CSV</button></div>
         <p class="muted">Revoke a points payout, or put an item back on the board if something went wrong.</p>
         <div id="handouts"></div>
       </div>
     </div>
 
-    <div id="tab-risk" class="hidden">
+    <div id="tab-flags" class="hidden">
       <div class="card">
         <h3>Risk flags</h3>
-        <p class="muted">Passive signals only — nothing is blocked. Inspect, then use the actions below if something looks wrong.</p>
+        <p class="muted">Passive signals only — nothing is blocked. Inspect, dismiss, or put an item back on the board.</p>
         <div id="flags"></div>
       </div>
     </div>
@@ -101,7 +106,65 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
             <p class="muted">Writes to points_ledger (reason=adjust), fully audited.</p>
           </div>
         </div>
-        <div class="card"><h3>Weekly dashboard</h3><div id="stats" class="muted">Loading…</div></div>
+        <div class="card"><h3>Dashboard</h3><div id="stats" class="muted">Loading…</div></div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="hidden">
+      <div class="card">
+        <h3>Rules &amp; points</h3>
+        <div class="fgrid">
+          <label>Locker slots <input id="st_slots" type="number" min="1" max="99"></label>
+          <label>Pickup TTL (hours) <input id="st_pickup_ttl_hours" type="number" min="1" max="720"></label>
+          <label>Active claims / student <input id="st_claim_active_cap" type="number" min="1" max="99"></label>
+          <label>Claims / student / day <input id="st_claim_daily_cap" type="number" min="1" max="99"></label>
+          <label>Points · normal item <input id="st_reward_normal" type="number" min="0" max="999"></label>
+          <label>Points · high-value item <input id="st_reward_high" type="number" min="0" max="999"></label>
+          <label>Monthly points cap <input id="st_month_cap" type="number" min="0" max="9999"></label>
+          <label>“Snatch” flag (minutes) <input id="st_snatch_min" type="number" min="0" max="1440"></label>
+        </div>
+        <div class="row" style="margin-top:12px"><button id="setSave" class="primary">Save settings</button><span class="muted" id="setMsg"></span></div>
+      </div>
+      <div class="card">
+        <h3>Announcement banner</h3>
+        <div class="row">
+          <label class="mono" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="st_notice_on" style="width:auto"> Show banner on the phone app</label>
+        </div>
+        <textarea id="st_notice" rows="2" maxlength="300" style="width:100%" placeholder="e.g. Exams week — check the board before Friday!"></textarea>
+        <div class="row"><button id="noticeSave" class="primary">Save banner</button><span class="muted" id="noticeMsg"></span></div>
+      </div>
+      <div class="card">
+        <h3>Security · Two-factor (Passkey)</h3>
+        <p class="muted" id="f2aState">Checking…</p>
+        <div class="row"><button id="pkRegister" class="primary">Register this device (Touch ID / Face ID)</button></div>
+        <p class="muted">Once a passkey is registered, the passphrase alone no longer opens this console — a device check (Touch ID / Face ID) is required at sign-in. Lost device? Reset needs Cloudflare dashboard access (ask your setup helper).</p>
+      </div>
+    </div>
+
+    <div id="tab-manage" class="hidden">
+      <div class="card">
+        <div class="row"><h3 style="flex:1">Items</h3><button data-csv="items" class="small">Export CSV</button></div>
+        <div class="row">
+          <input id="it_q" placeholder="Search code / title" style="width:220px">
+          <select id="it_status">
+            <option value="">All statuses</option><option>in_stock</option><option>ready</option><option>registered</option><option>returned</option><option>voided</option>
+          </select>
+          <button id="it_search" class="small">Search</button>
+        </div>
+        <div id="itemsAdmin" class="muted" style="margin-top:8px">Loading…</div>
+      </div>
+      <div class="card">
+        <h3>Students (identities)</h3>
+        <div class="row">
+          <input id="id_q" placeholder="Search ID / name" style="width:220px" class="mono">
+          <button id="id_search" class="small">Search</button>
+        </div>
+        <p class="muted">Fix a wrong name/class (keeps the anti-hijack rule intact) or reset a forgotten PIN — the student sets a new one on first use.</p>
+        <div id="identitiesAdmin" class="muted" style="margin-top:8px">Loading…</div>
+      </div>
+      <div class="card">
+        <div class="row"><h3 style="flex:1">Audit log &amp; points ledger</h3><button data-csv="ledger" class="small">Export ledger CSV</button></div>
+        <div id="auditAdmin" class="muted">Loading…</div>
       </div>
     </div>
   </div>
@@ -111,36 +174,77 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const b64uEncode = (u8) => btoa(String.fromCharCode(...u8)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64uDecode = (s) => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 let TOKEN = sessionStorage.getItem('lf_admin') || '';
-const api = (p, opt = {}) => fetch('/api' + p, { ...opt, headers: { 'X-Admin-Token': TOKEN, ...(opt.body && !(opt.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...(opt.headers || {}) } })
-  .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+let CSV = {};
+const api = async (p, opt = {}) => {
+  const r = await fetch('/api' + p, { ...opt, headers: { 'X-Admin-Token': TOKEN, ...(opt.body && !(opt.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...(opt.headers || {}) } });
+  const body = await r.json().catch(() => ({}));
+  if (r.status === 401 && body.error === 'NEED_2FA') { signOut(); return { status: 401, body }; }
+  return { status: r.status, body };
+};
+const rawJson = async (p, pass, payload) => {
+  const r = await fetch('/api' + p, { method: payload ? 'POST' : 'GET', headers: { 'X-Admin-Token': pass, ...(payload ? { 'content-type': 'application/json' } : {}) }, body: payload ? JSON.stringify(payload) : undefined });
+  return { status: r.status, ...(await r.json().catch(() => ({}))) };
+};
+function signOut() { sessionStorage.removeItem('lf_admin'); TOKEN = ''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#logout').classList.add('hidden'); $('#gateErr').textContent = 'Session expired — sign in again.'; }
+$('#logout').addEventListener('click', signOut);
 
-$('#enter').addEventListener('click', async () => {
-  TOKEN = $('#token').value.trim();
-  const r = await api('/admin/stats');
-  if (r.status !== 200) { $('#gateErr').textContent = r.status === 401 ? 'Wrong passphrase' : 'Connection failed'; return; }
-  sessionStorage.setItem('lf_admin', TOKEN);
-  boot();
-});
-$('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#enter').click(); });
-$('#logout').addEventListener('click', () => { sessionStorage.removeItem('lf_admin'); location.reload(); });
+async function enter() {
+  const pass = $('#token').value.trim();
+  if (!pass) return;
+  const st = await rawJson('/admin/webauthn/state', pass);
+  if (st.enabled) {
+    $('#gateErr').textContent = 'Waiting for device check (Touch ID / Face ID)…';
+    try {
+      const o = await rawJson('/admin/webauthn/login-options', pass, {});
+      if (!o.ok) throw new Error(o.error || 'options failed');
+      const cred = await navigator.credentials.get({ publicKey: {
+        challenge: b64uDecode(o.challenge), rpId: o.rpId, timeout: 60000, userVerification: 'required',
+        allowCredentials: (o.allowCredentials || []).map((c) => ({ type: 'public-key', id: b64uDecode(c.id) })),
+      } });
+      const v = await rawJson('/admin/webauthn/login', pass, {
+        id: b64uEncode(new Uint8Array(cred.rawId)),
+        authenticatorData: b64uEncode(new Uint8Array(cred.response.authenticatorData)),
+        clientDataJSON: b64uEncode(new Uint8Array(cred.response.clientDataJSON)),
+        signature: b64uEncode(new Uint8Array(cred.response.signature)),
+      });
+      if (!v.ok) throw new Error(v.error);
+      TOKEN = v.token; sessionStorage.setItem('lf_admin', TOKEN);
+      $('#gateErr').textContent = ''; boot();
+    } catch (e) {
+      $('#gateErr').textContent = 'Passkey check failed: ' + (e && e.message ? e.message : e);
+    }
+    return;
+  }
+  const c = await rawJson('/admin/stats', pass);
+  if (c.status !== 200) { $('#gateErr').textContent = c.status === 401 ? 'Wrong passphrase' : 'Connection failed'; return; }
+  TOKEN = pass; sessionStorage.setItem('lf_admin', TOKEN);
+  $('#gateErr').textContent = ''; boot();
+}
+$('#enter').addEventListener('click', enter);
+$('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
 
 $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   $$('.tabs button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
   b.setAttribute('aria-pressed', 'true');
-  ['handouts', 'risk', 'ops'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  ['handouts', 'flags', 'ops', 'settings', 'manage'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
 }));
 
 async function boot() {
   $('#gate').classList.add('hidden');
   $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
-  await Promise.all([loadHandouts(), loadFlags(), loadOps()]);
+  await Promise.all([loadHandouts(), loadFlags(), loadOps(), loadSettings(), loadManage()]);
 }
+
+/* ---------- Handouts ---------- */
 async function loadHandouts() {
   const r = await api('/admin/handouts');
   if (r.status !== 200) { $('#handouts').innerHTML = '<p class="muted">Unavailable</p>'; return; }
   const list = r.body.handouts || [];
+  CSV.handouts = list;
   $('#handouts').innerHTML = list.length ? list.map((h) => {
     const when = String(h.fulfilled_at || '').slice(0, 16).replace('T', ' ');
     return '<div class="row" style="align-items:flex-start">'
@@ -148,6 +252,7 @@ async function loadHandouts() {
       + '<b>' + esc(h.title) + '</b> <span class="mono muted">' + esc(h.code) + ' · slot ' + (h.slot_no ?? '—') + '</span><br>'
       + '<span class="muted">Claimant: ' + esc(h.claimant_name || '') + ' ' + esc(h.claimant_class || '') + ' · Finder: ' + esc(h.finder_name || '') + '</span><br>'
       + '<span class="muted mono">' + esc(when) + '</span>'
+      + (h.evidence_photo_path ? ' · <a class="muted" target="_blank" href="/api/photos/' + esc(h.evidence_photo_path) + '">evidence photo</a>' : '')
       + '</div>'
       + '<div class="row" style="margin:0">'
       + '<span class="tag' + (h.revoked ? ' warn' : '') + '">' + (h.revoked ? 'Points revoked' : '+' + h.granted + ' pts') + '</span>'
@@ -163,9 +268,11 @@ async function loadHandouts() {
   $$('#handouts [data-reopen]').forEach((b) => b.addEventListener('click', async () => {
     const rr = await api('/admin/items/reopen', { method: 'POST', body: JSON.stringify({ item_id: Number(b.dataset.reopen), reason: 'admin review' }) });
     toast(rr.status === 200 ? 'Item is back on the board' : 'Failed');
-    loadHandouts();
+    loadHandouts(); loadManage();
   }));
 }
+
+/* ---------- Risk flags ---------- */
 async function loadFlags() {
   const r = await api('/admin/flags');
   if (r.status !== 200) { $('#flags').innerHTML = '<p class="muted">Unavailable</p>'; return; }
@@ -175,20 +282,29 @@ async function loadFlags() {
       '<tr><td class="mono">' + esc(f.subject_type) + '#' + esc(f.subject_id) + '</td>'
       + '<td><span class="tag warn">' + esc(f.reason) + '</span></td>'
       + '<td class="mono muted">' + esc(String(f.created_at).slice(0, 16).replace('T', ' ')) + '</td>'
-      + '<td>' + (f.subject_type === 'item' ? '<button data-reopen-flag="' + esc(f.subject_id) + '">Put back on board</button>' : '') + '</td></tr>').join('') + '</table>'
+      + '<td><button class="small" data-dismiss="' + f.id + '">Dismiss</button>'
+      + (f.subject_type === 'item' ? ' <button class="small" data-reopen-flag="' + esc(f.subject_id) + '">Put back</button>' : '') + '</td></tr>').join('') + '</table>'
     : '<p class="muted">No flags ✅</p>';
+  $$('#flags [data-dismiss]').forEach((b) => b.addEventListener('click', async () => {
+    const rr = await api('/admin/flags/resolve', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.dismiss) }) });
+    toast(rr.status === 200 ? 'Dismissed' : 'Failed');
+    loadFlags();
+  }));
   $$('#flags [data-reopen-flag]').forEach((b) => b.addEventListener('click', async () => {
     const rr = await api('/admin/items/reopen', { method: 'POST', body: JSON.stringify({ item_id: Number(b.dataset.reopenFlag), reason: 'risk flag review' }) });
     toast(rr.status === 200 ? 'Item is back on the board' : 'Only items already handed out can be put back');
-    loadFlags();
+    loadFlags(); loadManage();
   }));
 }
+
+/* ---------- Operations ---------- */
 async function loadOps() {
   const s = await api('/admin/stats');
   if (s.status === 200) $('#stats').innerHTML =
     '<div class="stat"><b>' + s.body.stats.on_board + '</b>On display</div>'
     + '<div class="stat"><b>' + s.body.stats.reserved + '</b>Reserved</div>'
-    + '<div class="stat"><b>' + s.body.stats.returned + '</b>Returned</div>';
+    + '<div class="stat"><b>' + s.body.stats.returned + '</b>Returned</div>'
+    + '<div class="stat"><b>' + s.body.stats.active_claims + '</b>Active claims</div>';
   await Promise.all([loadRedemptions(), loadRewardsAdmin()]);
 }
 let rwEditId = null;
@@ -204,8 +320,7 @@ async function loadRedemptions() {
       + '<span class="mono">#' + o.id + '</span>'
       + '<b>' + esc(o.reward_icon || '') + ' ' + esc(o.reward_name || '') + '</b>'
       + '<span class="muted">' + esc(who) + ' · ' + o.points_cost + ' pts · ' + esc(when) + '</span>'
-      + badge
-      + '<span class="spacer"></span>'
+      + badge + '<span class="spacer"></span>'
       + (o.status === 'pending' ? '<button class="primary" data-fulfil="' + o.id + '">Mark as given</button>' : '')
       + '</div>';
   }).join('') : '<p class="muted">No orders yet.</p>';
@@ -255,17 +370,176 @@ $('#rwSave').addEventListener('click', async () => {
     loadRewardsAdmin();
   } else toast('Check the fields (name, cost > 0, stock ≥ 0)');
 });
-function toast(msg) {
-  const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:99;background:rgba(32,41,49,.92);color:#fff;font:600 14px var(--font-ui);padding:10px 18px;border-radius:99px';
-  d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 3000);
-}
 $('#adjGo').addEventListener('click', async () => {
   const sid = $('#adjSid').value.trim(), delta = Number($('#adjDelta').value);
   if (!/^[0-9]{7}$/.test(sid) || !Number.isInteger(delta) || delta === 0) { toast('Student ID must be 7 digits and points non-zero'); return; }
   const r = await api('/admin/points/adjust', { method: 'POST', body: JSON.stringify({ student_id: sid, delta }) });
   toast(r.status === 200 ? 'Adjusted' : 'Failed'); if (r.status === 200) { $('#adjSid').value = ''; $('#adjDelta').value = ''; }
 });
+
+/* ---------- Settings ---------- */
+const SET_KEYS = ['slots', 'pickup_ttl_hours', 'claim_active_cap', 'claim_daily_cap', 'reward_normal', 'reward_high', 'month_cap', 'snatch_min'];
+async function loadSettings() {
+  const r = await api('/admin/settings');
+  if (r.status === 200) {
+    for (const k of SET_KEYS) { const el = $('#st_' + k); if (el) el.value = r.body.settings[k]; }
+    $('#st_notice').value = r.body.settings.notice || '';
+    $('#st_notice_on').checked = r.body.settings.notice_on === '1';
+  }
+  const w = await api('/admin/webauthn/state');
+  if (w.status === 200) $('#f2aState').textContent = w.body.enabled
+    ? ('Two-factor is ON — ' + w.body.count + ' passkey(s) registered.')
+    : 'Two-factor is OFF — the passphrase alone opens this console. Register a passkey to turn it on.';
+}
+$('#setSave').addEventListener('click', async () => {
+  const payload = {};
+  for (const k of SET_KEYS) payload[k] = Number($('#st_' + k).value);
+  const r = await api('/admin/settings', { method: 'POST', body: JSON.stringify(payload) });
+  $('#setMsg').textContent = r.status === 200 ? 'Saved ✓' : 'Check the values (integers in range)';
+  setTimeout(() => { $('#setMsg').textContent = ''; }, 3000);
+});
+$('#noticeSave').addEventListener('click', async () => {
+  const r = await api('/admin/settings', { method: 'POST', body: JSON.stringify({ notice: $('#st_notice').value, notice_on: $('#st_notice_on').checked ? '1' : '0' }) });
+  $('#noticeMsg').textContent = r.status === 200 ? 'Saved ✓' : 'Failed';
+  setTimeout(() => { $('#noticeMsg').textContent = ''; }, 3000);
+});
+$('#pkRegister').addEventListener('click', async () => {
+  let pass = TOKEN;
+  let o = await rawJson('/admin/webauthn/register-options', pass, {});
+  if (o.status === 401) {
+    pass = prompt('Enter admin passphrase to register this device:') || '';
+    if (!pass) return;
+    o = await rawJson('/admin/webauthn/register-options', pass, {});
+  }
+  if (!o.ok) { toast('Failed: ' + (o.error || '')); return; }
+  try {
+    const cred = await navigator.credentials.create({ publicKey: {
+      challenge: b64uDecode(o.challenge),
+      rp: { id: o.rpId, name: o.rpName },
+      user: { id: b64uDecode(o.userId), name: 'admin', displayName: 'L&F Admin' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+      timeout: 60000, attestation: 'none',
+      excludeCredentials: (o.excludeCredentials || []).map((c) => ({ type: 'public-key', id: b64uDecode(c.id) })),
+    } });
+    const v = await rawJson('/admin/webauthn/register', pass, {
+      attestationObject: b64uEncode(new Uint8Array(cred.response.attestationObject)),
+      clientDataJSON: b64uEncode(new Uint8Array(cred.response.clientDataJSON)),
+    });
+    toast(v.ok ? 'Passkey registered — 2FA is now ON ✓' : 'Register failed: ' + v.error);
+    loadSettings();
+  } catch (e) { toast('Cancelled or not supported on this device'); }
+});
+
+/* ---------- Manage ---------- */
+async function loadManage() {
+  const [it, idn, au] = await Promise.all([api('/admin/items'), api('/admin/identities?q='), api('/admin/audit')]);
+  if (it.status === 200) { CSV.items = it.body.items; }
+  if (idn.status === 200) { CSV.identities = idn.body.identities; }
+  if (au.status === 200) { CSV.audit = au.body.audit; }
+  renderItems(it.body.items || []);
+  renderIdentities(idn.body.identities || []);
+  if (au.status === 200) $('#auditAdmin').innerHTML = (au.body.audit || []).slice(0, 30).map((a) =>
+    '<div class="row" style="margin:4px 0"><span class="mono muted">#' + a.id + '</span><b>' + esc(a.action) + '</b><span class="muted">' + esc(a.target || '') + ' · ' + esc(String(a.created_at).slice(0, 16)) + '</span></div>').join('') || '<p class="muted">No audit entries.</p>';
+}
+function renderItems(list) {
+  $('#itemsAdmin').innerHTML = list.length ? '<table><tr><th>Item</th><th>Status</th><th>Finder</th><th></th></tr>' + list.map((i) =>
+    '<tr><td><b>' + esc(i.title) + '</b><br><span class="mono muted">' + esc(i.code) + ' · slot ' + (i.slot_no ?? '—') + ' · ' + esc(i.category) + ' · ' + esc(i.location) + '</span></td>'
+    + '<td><span class="tag">' + esc(i.status) + '</span></td>'
+    + '<td class="muted">' + esc(i.finder_name || i.registered_by) + '</td>'
+    + '<td><button class="small" data-edit-item="' + i.id + '">Edit</button>'
+    + (['in_stock', 'registered', 'claim_pending'].includes(i.status) ? ' <button class="small danger" data-void-item="' + i.id + '">Void</button>' : '')
+    + (i.status === 'voided' ? ' <button class="small" data-restore-item="' + i.id + '">Restore</button>' : '')
+    + '</td></tr>').join('') + '</table>' : '<p class="muted">No items.</p>';
+  $$('#itemsAdmin [data-edit-item]').forEach((b) => b.addEventListener('click', () => {
+    const it = list.find((x) => x.id === Number(b.dataset.editItem));
+    $('#it_q').value = ''; // keep search box free for the edit form
+    $('#itemsAdmin').innerHTML = '<div class="card"><h3>Edit item · ' + esc(it.code) + '</h3>'
+      + '<div class="fgrid">'
+      + '<label>Title <input id="ie_title" value="' + esc(it.title) + '"></label>'
+      + '<label>Category <input id="ie_cat" value="' + esc(it.category) + '"></label>'
+      + '<label>Location <input id="ie_loc" value="' + esc(it.location) + '"></label>'
+      + '<label>Slot <input id="ie_slot" type="number" min="1" max="99" value="' + (it.slot_no ?? '') + '"></label>'
+      + '</div><div class="row"><button class="primary" id="ie_save">Save</button><button id="ie_cancel">Cancel</button></div></div>';
+    $('#ie_cancel').addEventListener('click', () => loadManage());
+    $('#ie_save').addEventListener('click', async () => {
+      const rr = await api('/admin/items', { method: 'POST', body: JSON.stringify({ id: it.id,
+        title: $('#ie_title').value, category: $('#ie_cat').value, location: $('#ie_loc').value,
+        slot_no: $('#ie_slot').value === '' ? '' : Number($('#ie_slot').value) }) });
+      toast(rr.status === 200 ? 'Saved' : rr.body.error === 'SLOT_TAKEN' ? 'That slot is taken' : 'Failed');
+      loadManage();
+    });
+  }));
+  $$('#itemsAdmin [data-void-item]').forEach((b) => b.addEventListener('click', async () => {
+    const rr = await api('/admin/items', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.voidItem), status: 'voided' }) });
+    toast(rr.status === 200 ? 'Item voided (off the board)' : 'Failed');
+    loadManage();
+  }));
+  $$('#itemsAdmin [data-restore-item]').forEach((b) => b.addEventListener('click', async () => {
+    const rr = await api('/admin/items', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.restoreItem), status: 'in_stock' }) });
+    toast(rr.status === 200 ? 'Item restored to the board' : 'Failed');
+    loadManage();
+  }));
+}
+function renderIdentities(list) {
+  $('#identitiesAdmin').innerHTML = list.length ? list.map((x) =>
+    '<div class="row" style="align-items:center">'
+    + '<span class="mono">' + esc(x.student_id) + '</span>'
+    + '<input data-in-name="' + x.student_id + '" value="' + esc(x.name) + '" style="width:150px">'
+    + '<input data-in-class="' + x.student_id + '" value="' + esc(x.class) + '" style="width:80px">'
+    + '<span class="muted">items ' + x.items_n + ' · claims ' + x.claims_n + ' · ' + x.points + ' pts' + (x.has_pin ? ' · PIN set' : '') + '</span>'
+    + '<span class="spacer"></span>'
+    + '<button class="small" data-in-save="' + x.student_id + '">Save</button>'
+    + '<button class="small danger" data-in-reset="' + x.student_id + '">Reset PIN</button>'
+    + '</div>').join('') : '<p class="muted">No identities match.</p>';
+  $$('#identitiesAdmin [data-in-save]').forEach((b) => b.addEventListener('click', async () => {
+    const sid = b.dataset.inSave;
+    const rr = await api('/admin/identities', { method: 'POST', body: JSON.stringify({ student_id: sid,
+      name: $('[data-in-name="' + sid + '"]').value, class: $('[data-in-class="' + sid + '"]').value }) });
+    toast(rr.status === 200 ? 'Saved' : 'Failed');
+    loadManage();
+  }));
+  $$('#identitiesAdmin [data-in-reset]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Reset the PIN for ' + b.dataset.inReset + '? They will set a new one on first use.')) return;
+    const rr = await api('/admin/identities', { method: 'POST', body: JSON.stringify({ student_id: b.dataset.inReset, reset_pin: true }) });
+    toast(rr.status === 200 ? 'PIN reset' : 'Failed');
+    loadManage();
+  }));
+}
+$('#it_search').addEventListener('click', async () => {
+  const r = await api('/admin/items?q=' + encodeURIComponent($('#it_q').value.trim()) + '&status=' + encodeURIComponent($('#it_status').value));
+  if (r.status === 200) { CSV.items = r.body.items; renderItems(r.body.items); }
+});
+$('#id_search').addEventListener('click', async () => {
+  const r = await api('/admin/identities?q=' + encodeURIComponent($('#id_q').value.trim()));
+  if (r.status === 200) renderIdentities(r.body.identities);
+});
+
+/* ---------- CSV ---------- */
+async function exportCsv(kind) {
+  if (kind === 'handouts' && !CSV.handouts) await loadHandouts();
+  if (kind === 'items' && !CSV.items) await loadManage();
+  if (kind === 'ledger') { const r = await api('/admin/ledger'); if (r.status === 200) CSV.ledger = r.body.ledger; }
+  const rows = CSV[kind] || [];
+  if (!rows.length) { toast('Nothing to export'); return; }
+  const keys = Object.keys(rows[0]);
+  const csv = [keys.join(',')].concat(rows.map((r) => keys.map((k) => {
+    const v = String(r[k] ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }).join(','))).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lf-' + kind + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Exported ' + rows.length + ' rows');
+}
+$$('[data-csv]').forEach((b) => b.addEventListener('click', () => exportCsv(b.dataset.csv)));
+
+function toast(msg) {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:99;background:rgba(32,41,49,.92);color:#fff;font:600 14px var(--font-ui);padding:10px 18px;border-radius:99px';
+  d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 3000);
+}
 if (TOKEN) boot();
 </script>
 </body></html>

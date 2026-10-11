@@ -171,3 +171,6 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 .shop-cost { font: 700 15px var(--font-mono); color: var(--color-navy); }
 .shop-card .btn { margin-top: auto; }
 .shop-need { font: 600 11.5px var(--font-ui); color: var(--color-warn); }
+
+/* 公告栏（v1.7.0） */
+.notice-bar { background: var(--color-accent); color: #fff; text-align: center; font: 600 13.5px var(--font-ui); padding: 8px 14px; }

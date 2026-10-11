@@ -2,9 +2,9 @@
 // v1.6.0：身份首写为准 + 姓名匹配；物品码 crypto 随机；507 清理悬空行
 import { checkImage } from '../lib/image.js';
 import { upsertIdentitySafe } from '../lib/identity.js';
+import { getSettings } from '../lib/settings.js';
 const HIGH = new Set(['electronics', 'card']);
 export const tierOf = (category) => (HIGH.has(category) ? 'high' : 'normal');
-const SLOT_COUNT = (env) => Number(env.SLOT_COUNT || 12);
 const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
 const itemCode = () => 'LF-' + new Date().getUTCFullYear() + '-' + [...crypto.getRandomValues(new Uint8Array(4))].map((n) => B36[n % 36]).join('');
 async function occupiedSlots(db) {
@@ -48,9 +48,11 @@ export async function report(db, env, req) {
   }
   if (!ins) return Response.json({ ok: false, error: 'CODE_RETRY' }, { status: 503 });
   const itemId = ins.meta.last_row_id;
+  const st = await getSettings(db);
+  const slotCount = Number(st.slots || 12);
   const used = await occupiedSlots(db);
   let slot = null;
-  for (let n = 1; n <= SLOT_COUNT(env); n++) {
+  for (let n = 1; n <= slotCount; n++) {
     if (used.has(n)) continue;
     const r = await db.prepare("UPDATE items SET slot_no=?, status='in_stock', updated_at=? WHERE id=? AND status='registered' AND slot_no IS NULL")
       .bind(n, iso, itemId).run();
