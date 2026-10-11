@@ -1,58 +1,51 @@
-// src/api/admin.js —— 唯一鉴权点：X-Admin-Token（部署时 wrangler secret put ADMIN_TOKEN）
-import { genCode, pickupExpiry } from '../lib/codes.js';
-import { monthKey } from '../lib/points.js';   // 修正：points/adjust 分支用到，简报 import 遗漏
+// src/api/admin.js —— 唯一鉴权点：口令 或 2FA 会话令牌；失败计数限流（5 次/10 分钟/IP）
+import { monthKey } from '../lib/points.js';
+import { blocked, bump } from '../lib/guard.js';
+import { sha256Hex } from '../lib/hash.js';
+import { f2aEnabled, webauthnRoutes } from './admin-webauthn.js';
 const json = (o, s = 200) => Response.json(o, { status: s });
 export async function admin(db, env, req, token) {
-  token = token || req.headers.get('X-Admin-Token');   // 兼容两种调用：worker 显式传参 / 直调时自读请求头
-  if (!token || token !== env.ADMIN_TOKEN) return json({ ok: false, error: 'UNAUTHORIZED' }, 401);
+  token = token || req.headers.get('X-Admin-Token');
   const url = new URL(req.url);
+  const ip = req.headers.get('CF-Connecting-IP') || 'local';
+  if (!token) return json({ ok: false, error: 'UNAUTHORIZED' }, 401);
+  const passOk = !!env.ADMIN_TOKEN && token === env.ADMIN_TOKEN;
+  let sessionOk = false;
+  if (!passOk) {
+    const sess = await db.prepare('SELECT expires_at FROM admin_sessions WHERE token_hash=?').bind(await sha256Hex(token)).first();
+    sessionOk = !!(sess && sess.expires_at > Date.now());
+  }
+  const f2a = await f2aEnabled(db);
+  const isW = url.pathname.startsWith('/api/admin/webauthn/');
+  if (isW && (passOk || sessionOk)) return webauthnRoutes(db, env, req, url, { passOk, sessionOk });
+  const authed = sessionOk || (passOk && !f2a);
+  if (!authed) {
+    if (await blocked(db, 'admin', ip, 5, 600000)) return json({ ok: false, error: 'TOO_MANY_ATTEMPTS' }, 429);
+    if (!passOk) await bump(db, 'admin', ip);
+    return json({ ok: false, error: passOk && f2a ? 'NEED_2FA' : 'UNAUTHORIZED' }, 401);
+  }
   const audit = (action, target) => db.prepare('INSERT INTO admin_audit(action,target) VALUES (?,?)').bind(action, target).run();
-  if (req.method === 'GET' && url.pathname === '/api/admin/queue') {
-    const q = await db.prepare(`SELECT c.id AS claim_id, c.status, c.verify_answer, c.created_at,
-      i.title, i.code, i.value_tier, id2.name AS claimant_name, id2.class AS claimant_class
-      FROM claims c JOIN items i ON i.id=c.item_id JOIN identities id2 ON id2.student_id=c.claimant_id
-      WHERE c.status='in_review' ORDER BY c.created_at`).all();
+  // —— 风险黄标 ——
+  if (req.method === 'GET' && url.pathname === '/api/admin/flags') {
     const flags = await db.prepare("SELECT * FROM risk_flags WHERE resolved=0 ORDER BY id DESC LIMIT 50").all();
-    return json({ ok: true, queue: q.results, flags: flags.results });
+    return json({ ok: true, flags: flags.results });
   }
-  if (req.method === 'POST' && url.pathname === '/api/admin/review') {
-    const { claim_id, decision } = await req.json();   // approve | reject
-    if (decision === 'approve') {
-      const code = genCode();
-      await db.batch([
-        db.prepare("UPDATE claims SET status='approved', pickup_code=?, pickup_expires_at=? WHERE id=? AND status='in_review'")
-          .bind(code, pickupExpiry(new Date(), Number(env.PICKUP_TTL_HOURS || 48)), claim_id),
-        db.prepare("UPDATE items SET status='ready' WHERE id=(SELECT item_id FROM claims WHERE id=?) AND status='in_stock'").bind(claim_id),
-      ]);
-      await audit('review_approve', `claim:${claim_id}`);
-      return json({ ok: true, pickup_code: code });
-    }
-    await db.prepare("UPDATE claims SET status='rejected', review_reason='ADMIN_REJECTED' WHERE id=? AND status='in_review'").bind(claim_id).run();
-    await db.prepare("UPDATE items SET status='in_stock' WHERE id=(SELECT item_id FROM claims WHERE id=?) AND status='claim_pending'").bind(claim_id).run();
-    await audit('review_reject', `claim:${claim_id}`);
-    return json({ ok: true });
-  }
-  if (req.method === 'POST' && url.pathname === '/api/admin/points/adjust') {
-    const { student_id, delta, reason } = await req.json();
-    await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,ref_type,ref_id,month_key) VALUES (?,?,'adjust','admin',NULL,?)")
-      .bind(student_id, delta, monthKey(new Date().toISOString())).run();
-    await audit('points_adjust', `${student_id}:${delta}`);
-    return json({ ok: true });
-  }
-  if (req.method === 'POST' && url.pathname === '/api/admin/redemptions/fulfill') {
+  if (req.method === 'POST' && url.pathname === '/api/admin/flags/resolve') {
     const { id } = await req.json();
-    await db.prepare("UPDATE redemptions SET status='fulfilled', fulfilled_at=datetime('now') WHERE id=? AND status='pending'").bind(id).run();
-    await audit('redemption_fulfill', `redemption:${id}`);
+    await db.prepare('UPDATE risk_flags SET resolved=1 WHERE id=?').bind(id).run();
+    await audit('flag_resolve', `flag:${id}`);
     return json({ ok: true });
   }
+  // —— 看板 ——
   if (req.method === 'GET' && url.pathname === '/api/admin/stats') {
     const week = await db.prepare(`SELECT
-      (SELECT COUNT(*) FROM items WHERE status IN ('in_stock','ready','claim_pending')) AS pending,
+      (SELECT COUNT(*) FROM items WHERE status IN ('in_stock','claim_pending')) AS on_board,
+      (SELECT COUNT(*) FROM items WHERE status='ready') AS reserved,
       (SELECT COUNT(*) FROM items WHERE status='returned') AS returned,
-      (SELECT COUNT(*) FROM claims WHERE status='in_review') AS reviews`).first();
+      (SELECT COUNT(*) FROM claims WHERE status IN ('approved','auto_approved')) AS active_claims`).first();
     return json({ ok: true, stats: week });
   }
-  // 最近出库记录（含撤回状态）——「撤回积分发放」的入口（全凭自觉：admin 兜底）
+  // —— 出库记录 + 撤回 ——
   if (req.method === 'GET' && url.pathname === '/api/admin/handouts') {
     const rows = await db.prepare(`
       SELECT c.id AS claim_id, c.fulfilled_at, c.evidence_photo_path, c.review_reason,
@@ -68,7 +61,6 @@ export async function admin(db, env, req, token) {
       ORDER BY c.fulfilled_at DESC LIMIT 30`).all();
     return json({ ok: true, handouts: rows.results.map((r) => ({ ...r, revoked: r.revoked_n > 0 })) });
   }
-  // 撤回积分发放：按认领单冲销（幂等；每单仅可撤回一次；写入审计）
   if (req.method === 'POST' && url.pathname === '/api/admin/points/revoke') {
     const { claim_id } = await req.json();
     const claim = await db.prepare("SELECT c.id, i.registered_by AS finder FROM claims c JOIN items i ON i.id=c.item_id WHERE c.id=?").bind(claim_id).first();
@@ -82,7 +74,6 @@ export async function admin(db, env, req, token) {
     await audit('points_revoke', `claim:${claim_id}:${back}`);
     return json({ ok: true, revoked_points: back });
   }
-  // 干预：把已出库的物品重新上架（推翻该次出库记录，保留证据与审计）
   if (req.method === 'POST' && url.pathname === '/api/admin/items/reopen') {
     const { item_id, reason } = await req.json();
     const rs = await db.batch([
@@ -94,7 +85,17 @@ export async function admin(db, env, req, token) {
     await audit('item_reopen', `item:${item_id}${reason ? ':' + reason : ''}`);
     return json({ ok: true });
   }
-  // 兑换订单：待发放列表 + 近期已发放（运营按此发放实物）
+  // —— 积分调整 ——
+  if (req.method === 'POST' && url.pathname === '/api/admin/points/adjust') {
+    const { student_id, delta } = await req.json();
+    if (!/^\d{7}$/.test(String(student_id ?? '')) || !Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 10000)
+      return json({ ok: false, error: 'BAD_FIELDS' }, 400);
+    await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,ref_type,ref_id,month_key) VALUES (?,?,'adjust','admin',NULL,?)")
+      .bind(student_id, delta, monthKey(new Date().toISOString())).run();
+    await audit('points_adjust', `${student_id}:${delta}`);
+    return json({ ok: true });
+  }
+  // —— 兑换订单 / 奖品目录 ——
   if (req.method === 'GET' && url.pathname === '/api/admin/redemptions') {
     const rows = await db.prepare(`
       SELECT r.id, r.points_cost, r.status, r.created_at, r.fulfilled_at,
@@ -107,12 +108,16 @@ export async function admin(db, env, req, token) {
       LIMIT 50`).all();
     return json({ ok: true, redemptions: rows.results });
   }
-  // 奖品目录（含下架项，供后台管理）
+  if (req.method === 'POST' && url.pathname === '/api/admin/redemptions/fulfill') {
+    const { id } = await req.json();
+    await db.prepare("UPDATE redemptions SET status='fulfilled', fulfilled_at=datetime('now') WHERE id=? AND status='pending'").bind(id).run();
+    await audit('redemption_fulfill', `redemption:${id}`);
+    return json({ ok: true });
+  }
   if (req.method === 'GET' && url.pathname === '/api/admin/rewards') {
     const rows = await db.prepare('SELECT id, name, name_en, cost, stock, active, icon FROM rewards ORDER BY active DESC, cost').all();
     return json({ ok: true, rewards: rows.results });
   }
-  // 奖品新增/编辑（id 存在则更新）
   if (req.method === 'POST' && url.pathname === '/api/admin/rewards') {
     const b = await req.json();
     const name = String(b.name || '').trim();
@@ -133,6 +138,45 @@ export async function admin(db, env, req, token) {
       .bind(name, nameEn, cost, stock, active, icon).run();
     await audit('reward_create', `reward:${r.meta.last_row_id}`);
     return json({ ok: true, id: r.meta.last_row_id });
+  }
+  // —— 身份管理（防劫持配套：修正姓名 / 重置 PIN）——
+  if (req.method === 'GET' && url.pathname === '/api/admin/identities') {
+    const q = (url.searchParams.get('q') || '').trim();
+    const like = '%' + q + '%';
+    const rows = await db.prepare(`SELECT student_id, name, class, created_at,
+        (pin_hash IS NOT NULL) AS has_pin,
+        (SELECT COUNT(*) FROM items WHERE registered_by=identities.student_id) AS items_n,
+        (SELECT COUNT(*) FROM claims WHERE claimant_id=identities.student_id) AS claims_n,
+        (SELECT COALESCE(SUM(delta),0) FROM points_ledger WHERE student_id=identities.student_id) AS points
+      FROM identities
+      WHERE (? = '' OR student_id LIKE ? OR name LIKE ?)
+      ORDER BY created_at DESC LIMIT 50`).bind(q, like, like).all();
+    return json({ ok: true, identities: rows.results });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/admin/identities') {
+    const b = await req.json();
+    const sid = String(b.student_id ?? '').trim();
+    if (!/^\d{7}$/.test(sid)) return json({ ok: false, error: 'BAD_STUDENT_ID' }, 400);
+    const idn = await db.prepare('SELECT student_id FROM identities WHERE student_id=?').bind(sid).first();
+    if (!idn) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+    if (b.reset_pin) {
+      await db.prepare('UPDATE identities SET pin_hash=NULL WHERE student_id=?').bind(sid).run();
+      await audit('identity_reset_pin', sid);
+    }
+    if (b.name || b.class) {
+      const name = String(b.name || '').trim().slice(0, 30);
+      const cls = String(b.class || '').trim().slice(0, 12);
+      if (!name && !cls) return json({ ok: false, error: 'BAD_FIELDS' }, 400);
+      await db.prepare(`UPDATE identities SET name=COALESCE(NULLIF(?,''),name), class=COALESCE(NULLIF(?,''),class) WHERE student_id=?`)
+        .bind(name, cls, sid).run();
+      await audit('identity_update', `${sid}:${name || '-'}:${cls || '-'}`);
+    }
+    return json({ ok: true });
+  }
+  // —— 审计日志 ——
+  if (req.method === 'GET' && url.pathname === '/api/admin/audit') {
+    const rows = await db.prepare('SELECT id, action, target, created_at FROM admin_audit ORDER BY id DESC LIMIT 100').all();
+    return json({ ok: true, audit: rows.results });
   }
   return json({ ok: false, error: 'NOT_FOUND' }, 404);
 }

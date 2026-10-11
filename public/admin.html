@@ -167,7 +167,7 @@ async function loadHandouts() {
   }));
 }
 async function loadFlags() {
-  const r = await api('/admin/queue');
+  const r = await api('/admin/flags');
   if (r.status !== 200) { $('#flags').innerHTML = '<p class="muted">Unavailable</p>'; return; }
   const flags = r.body.flags || [];
   $('#flags').innerHTML = flags.length
@@ -186,9 +186,9 @@ async function loadFlags() {
 async function loadOps() {
   const s = await api('/admin/stats');
   if (s.status === 200) $('#stats').innerHTML =
-    '<div class="stat"><b>' + s.body.stats.pending + '</b>On display</div>'
-    + '<div class="stat"><b>' + s.body.stats.returned + '</b>Returned</div>'
-    + '<div class="stat"><b>' + s.body.stats.reviews + '</b>Awaiting review</div>';
+    '<div class="stat"><b>' + s.body.stats.on_board + '</b>On display</div>'
+    + '<div class="stat"><b>' + s.body.stats.reserved + '</b>Reserved</div>'
+    + '<div class="stat"><b>' + s.body.stats.returned + '</b>Returned</div>';
   await Promise.all([loadRedemptions(), loadRewardsAdmin()]);
 }
 let rwEditId = null;

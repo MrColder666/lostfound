@@ -4,7 +4,8 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-09-01",
   "d1_databases": [{ "binding": "DB", "database_name": "lostfound", "database_id": "c735c00f-3f61-4360-b47b-375118b40dc8" }],
+  // "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "lostfound-photos" }],   // R2 需先在 Cloudflare Dashboard 启用，启用后解注释并重新部署
   "assets": { "directory": "public", "binding": "ASSETS" },
   "triggers": { "crons": ["*/5 * * * *"] },   // 冷冻期结算（T11 实现）
-  "vars": { "SLOT_COUNT": "12", "FREEZE_MINUTES": "60", "DROP_TTL_MINUTES": "15", "PICKUP_TTL_HOURS": "48" }
+  "vars": { "SLOT_COUNT": "12", "FREEZE_MINUTES": "60", "PICKUP_TTL_HOURS": "48", "CLAIM_ACTIVE_CAP": "3", "CLAIM_DAILY_CAP": "5" }
 }

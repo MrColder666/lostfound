@@ -1,12 +1,11 @@
 // public/js/kiosk.js —— 五态状态机；接口以 src/api/*.js + src/worker.js 为准；文案走共享 i18n 词典（默认 EN）
-import { t, getLang } from './i18n-inline.js';
+import { t } from './i18n-inline.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const api = (p, opt) => fetch('/api' + p, opt).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
 const JSONH = { 'content-type': 'application/json' };
 const NL = String.fromCharCode(10);
-let lang = getLang();
 
 /* ---------- i18n ---------- */
 function applyStaticTexts() {
@@ -16,7 +15,7 @@ function applyStaticTexts() {
 /* ---------- 状态机 ---------- */
 function go(state) {
   $$('.k-state').forEach((el) => el.classList.toggle('is-active', el.dataset.state === state));
-  stopCam(); stopScan();
+  stopCam();
 }
 $$('[data-go]').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
 
@@ -27,6 +26,16 @@ function toast(msg, ms) {
   d.textContent = msg;
   document.body.appendChild(d);
   setTimeout(() => d.remove(), ms || 3200);
+}
+
+function errToast(code) {
+  return ({
+    ITEM_NOT_CLAIMABLE: t('k_toast_not_claimable'),
+    PIN_FORMAT: t('k_toast_pin_format'), PIN_INCORRECT: t('k_toast_pin_wrong'), TOO_MANY_PIN: t('k_toast_pin_many'),
+    TOO_MANY_ACTIVE: t('k_toast_claim_many'), TOO_MANY_TODAY: t('k_toast_claim_today'),
+    NAME_MISMATCH: t('k_toast_name_mismatch'), IDENTITY_NAME_MISMATCH: t('k_toast_name_mismatch'), IDENTITY_NOT_FOUND: t('k_toast_name_mismatch'),
+    CLAIM_NOT_FOUND: t('k_toast_already'), CLAIM_EXPIRED: t('k_toast_pickup_expired'),
+  })[code];
 }
 
 /* ---------- 时钟与离线 ---------- */
@@ -59,57 +68,6 @@ function grabBlob(sel, maxSide) {
   c.width = Math.round(v.videoWidth * scale); c.height = Math.round(v.videoHeight * scale);
   c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
   return new Promise((res) => c.toBlob(res, 'image/jpeg', 0.85));
-}
-
-/* ---------- 扫码（jsQR，vendor 本地） ---------- */
-let scanRAF = 0;
-function startScan(sel, cb) {
-  const v = $(sel);
-  const tick = () => {
-    if (v.readyState >= 2 && v.videoWidth && window.jsQR) {
-      const c = document.createElement('canvas');
-      c.width = v.videoWidth; c.height = v.videoHeight;
-      const ctx = c.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(v, 0, 0);
-      const hit = window.jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
-      if (hit && hit.data) {
-        const digits = String(hit.data).match(/[0-9]/g) || [];
-        stopScan(); cb(digits.join('').slice(-6)); return;
-      }
-    }
-    scanRAF = requestAnimationFrame(tick);
-  };
-  scanRAF = requestAnimationFrame(tick);
-}
-function stopScan() { if (scanRAF) cancelAnimationFrame(scanRAF); scanRAF = 0; }
-
-/* ---------- 键盘 ---------- */
-function makePad(padSel, dispSel, submitSel) {
-  let val = '';
-  const disp = $(dispSel), submit = $(submitSel);
-  const render = () => { disp.textContent = val.padEnd(6, '·'); submit.disabled = val.length !== 6; };
-  const pad = $(padSel);
-  pad.innerHTML = '';
-  for (const d of ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '']) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    if (d === '') { b.disabled = true; b.style.visibility = 'hidden'; }
-    else {
-      b.textContent = d;
-      b.addEventListener('click', () => {
-        val = d === '⌫' ? val.slice(0, -1) : (val + d).slice(0, 6);
-        render();
-      });
-    }
-    pad.appendChild(b);
-  }
-  render();
-  return {
-    set(v) { val = String(v).replace(/[^0-9]/g, '').slice(0, 6); render(); },
-    get() { return val; },
-    clear() { val = ''; render(); },
-    onSubmit(fn) { submit.onclick = () => { if (val.length === 6) fn(val); }; },
-  };
 }
 
 let lastSlot = null, lastCode = '';
@@ -153,7 +111,7 @@ function buildReportChips() {
   restoreChips();
 }
 function composeTitle() {
-  return lang === 'en' ? (repColor + ' ' + repCatLabel) : (repColor + repCatLabel);
+  return repColor + ' ' + repCatLabel;
 }
 function repSummaryPaint() {
   $('#repSummary').textContent = [
@@ -163,6 +121,14 @@ function repSummaryPaint() {
     $('#repVerify').value ? t('k_sum_verify_yes') : t('k_sum_verify_no'),
     $('#repSid').value ? t('k_sum_sid') + $('#repSid').value : t('k_sum_sid') + t('k_sum_none'),
   ].join(NL);
+}
+function resetReportState() {
+  repPhoto = null; repCat = ''; repCatLabel = ''; repColorKey = ''; repColor = ''; repLocKey = ''; repLoc = '';
+  const set = (id, v) => { const el = $(id); if (el) el.value = v; };
+  set('#repVerify', ''); set('#repSid', ''); set('#repName', ''); set('#repClass', '');
+  $('#repShot').textContent = t('k_shot'); $('#repRetake').hidden = true;
+  $('#repTo2').disabled = true; $('#repTo3').disabled = true; $('#repSubmit').disabled = true;
+  repSummaryPaint();
 }
 function repPaneGo(n) {
   repPane = n;
@@ -177,6 +143,7 @@ $('#repSid').addEventListener('input', () => { repSummaryPaint(); $('#repSubmit'
 $('#repName').addEventListener('input', () => $('#repSid').dispatchEvent(new Event('input')));
 $('#repClass').addEventListener('input', () => $('#repSid').dispatchEvent(new Event('input')));
 $('#btnReport').addEventListener('click', async () => {
+  resetReportState();
   go('report'); repPaneGo(1); buildReportChips();
   const ok = await startCam('#repCam');
   $('#repCamHint').textContent = ok ? t('k_cam_hint_ok') : t('k_cam_hint_bad');
@@ -252,6 +219,8 @@ function selectItem(id, cardEl) {
     + '<input class="k-input mono k-biginput" id="claimSid" inputmode="numeric" maxlength="7" placeholder="' + t('k_sid_ph') + '">'
     + '<input class="k-input" id="claimName" placeholder="' + t('k_name_ph') + '" style="margin-top:8px">'
     + '<input class="k-input" id="claimClass" placeholder="' + t('k_class_ph') + '" style="margin-top:8px">'
+    + '<input class="k-input mono" id="claimPin" inputmode="numeric" maxlength="4" placeholder="' + t('k_pin_label') + '" style="margin-top:8px">'
+    + '<p class="k-hint" style="margin-top:4px">' + t('k_pin_hint') + '</p>'
     + '<button class="k-btn k-primary k-wide" id="claimGo" style="margin-top:14px" type="button">' + t('k_claim_submit') + '</button>';
   $('#claimGo').addEventListener('click', submitClaim);
 }
@@ -259,15 +228,16 @@ async function submitClaim() {
   const answer = $('#claimAnswer').value.trim();
   const sid = $('#claimSid').value.trim();
   const nm = $('#claimName').value.trim();
+  const pin = $('#claimPin').value.trim();
   if (!answer || !/^[0-9]{7}$/.test(sid) || !$('#claimName').value.trim() || !$('#claimClass').value.trim()) { toast(t('k_toast_fill')); return; }
+  if (!/^[0-9]{4}$/.test(pin)) { toast(t('k_toast_pin_format')); return; }
   const r = await api('/claims', { method: 'POST', headers: JSONH, body: JSON.stringify({
     code: findSel.code, student_id: sid, name: nm,
-    class: $('#claimClass').value.trim(), verify_answer: answer }) });
+    class: $('#claimClass').value.trim(), pin, verify_answer: answer }) });
   if (r.status === 200 && r.body.ok) {
-    if (r.body.pickup_code) { toast(t('k_claim_received')); handoutEntry(r.body.id, sid, nm, findSel); }
-    else if (r.body.status === 'pending') { $('#doneMsg').textContent = t('k_claim_received_h'); $('#doneSub').textContent = t('k_claim_freeze_sub'); go('done'); }
-    else { $('#doneMsg').textContent = t('k_claim_manual_h'); $('#doneSub').textContent = t('k_claim_manual_sub'); go('done'); }
-  } else { toast(r.body.error === 'ITEM_NOT_CLAIMABLE' ? t('k_toast_not_claimable') : t('k_toast_claim_fail')); }
+    toast(t('k_claim_received'));
+    handoutEntry(r.body.id, sid, nm, pin, findSel);
+  } else { toast(errToast(r.body.error) || t('k_toast_claim_fail')); }
 }
 
 /* ---------- 流程：身份领取（学号 + 姓名，无需领取码） ---------- */
@@ -275,7 +245,7 @@ let pickClaims = [], pickCtx = null;
 function openPickup() {
   go('pickup');
   pickClaims = []; pickCtx = null;
-  $('#pickSid').value = ''; $('#pickName').value = '';
+  $('#pickSid').value = ''; $('#pickName').value = ''; $('#pickPin').value = '';
   $('#pickInfo').innerHTML = '<p class="k-hint">' + t('k_pick_start') + '</p>';
 }
 $('#pickLookup').addEventListener('click', () => lookupClaimList());
@@ -283,14 +253,12 @@ $('#pickName').addEventListener('keydown', (e) => { if (e.key === 'Enter') looku
 async function lookupClaimList() {
   const sid = $('#pickSid').value.trim();
   const name = $('#pickName').value.trim();
+  const pin = $('#pickPin').value.trim();
   if (!/^[0-9]{7}$/.test(sid)) { toast(t('k_toast_bad_sid')); return; }
   if (!name) { toast(t('k_toast_need_name')); return; }
-  const r = await api('/kiosk/lookup-claims', { method: 'POST', headers: JSONH, body: JSON.stringify({ student_id: sid, name }) });
-  if (!r.body.ok) {
-    if (r.body.error === 'NAME_MISMATCH' || r.body.error === 'IDENTITY_NOT_FOUND') toast(t('k_toast_name_mismatch'));
-    else toast(t('k_toast_lookup_fail'));
-    return;
-  }
+  if (!/^[0-9]{4}$/.test(pin)) { toast(t('k_toast_pin_format')); return; }
+  const r = await api('/kiosk/lookup-claims', { method: 'POST', headers: JSONH, body: JSON.stringify({ student_id: sid, name, pin }) });
+  if (!r.body.ok) { toast(errToast(r.body.error) || t('k_toast_lookup_fail')); return; }
   pickClaims = r.body.claims || [];
   pickCtx = null;
   if (!pickClaims.length) { $('#pickInfo').innerHTML = '<p class="k-hint">' + t('k_pick_none') + '</p>'; return; }
@@ -301,12 +269,12 @@ async function lookupClaimList() {
       + '<span class="meta">' + t('k_slot') + ' ' + String(c.slot_no ?? 0).padStart(2, '0') + ' · ' + esc(label) + '</span>'
       + '</button>';
   }).join('');
-  $$('#pickInfo .k-find-card:not([disabled])').forEach((b) => b.addEventListener('click', () => selectClaim(Number(b.dataset.cid), sid, name)));
+  $$('#pickInfo .k-find-card:not([disabled])').forEach((b) => b.addEventListener('click', () => selectClaim(Number(b.dataset.cid), sid, name, pin)));
 }
-function selectClaim(cid, sid, name) {
+function selectClaim(cid, sid, name, pin) {
   const c = pickClaims.find((x) => x.claim_id === cid);
   if (!c) return;
-  pickCtx = { claim_id: cid, student_id: sid, name };
+  pickCtx = { claim_id: cid, student_id: sid, name, pin };
   renderHandout(c);
 }
 function renderHandout(c) {
@@ -319,10 +287,10 @@ function renderHandout(c) {
     + '<p class="k-hint">' + t('k_pickup_out_note') + '</p>';
   $('#pickOut').addEventListener('click', () => doFulfill());
 }
-function handoutEntry(claimId, sid, name, item) {
+function handoutEntry(claimId, sid, name, pin, item) {
   go('pickup');
-  pickClaims = []; pickCtx = { claim_id: claimId, student_id: sid, name };
-  $('#pickSid').value = sid; $('#pickName').value = name;
+  pickClaims = []; pickCtx = { claim_id: claimId, student_id: sid, name, pin };
+  $('#pickSid').value = sid; $('#pickName').value = name; $('#pickPin').value = pin;
   renderHandout({ title: item.title, location: item.location, slot_no: item.slot_no });
 }
 async function doFulfill() {
@@ -337,6 +305,7 @@ async function doFulfill() {
     fd.set('claim_id', String(pickCtx.claim_id));
     fd.set('student_id', pickCtx.student_id);
     fd.set('name', pickCtx.name);
+    fd.set('pin', pickCtx.pin);
     fd.set('photo', new File([blob], 'evidence.jpg', { type: 'image/jpeg' }));
     const r = await api('/kiosk/fulfill', { method: 'POST', body: fd });
     if (r.status === 200 && r.body.ok) {
@@ -347,9 +316,8 @@ async function doFulfill() {
         : t('k_points_capped_note');
       go('done');
     } else if (r.status === 409) { toast(t('k_toast_already')); $('#evidenceWrap').hidden = true; }
-    else if (r.status === 403) { toast(t('k_toast_identity_mismatch')); $('#evidenceWrap').hidden = true; }
     else if (r.status === 410) { toast(t('k_toast_pickup_expired')); $('#evidenceWrap').hidden = true; }
-    else { toast(r.body.error === 'TOO_LARGE' ? t('k_toast_photo_big') : t('k_toast_fulfill_fail')); }
+    else { toast(r.body.error === 'TOO_LARGE' ? t('k_toast_photo_big') : (errToast(r.body.error) || t('k_toast_fulfill_fail'))); }
   };
   $('#pickCancel').onclick = () => { $('#evidenceWrap').hidden = true; };
 }

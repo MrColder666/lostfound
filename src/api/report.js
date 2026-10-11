@@ -1,11 +1,15 @@
-// src/api/report.js —— 登记即入库（全凭自觉：无凭证码，直接分配格位；§4.1 简化）
+// src/api/report.js —— 登记即入库（全凭自觉：无凭证码，直接分配格位）
+// v1.6.0：身份首写为准 + 姓名匹配；物品码 crypto 随机；507 清理悬空行
 import { checkImage } from '../lib/image.js';
+import { upsertIdentitySafe } from '../lib/identity.js';
 const HIGH = new Set(['electronics', 'card']);
 export const tierOf = (category) => (HIGH.has(category) ? 'high' : 'normal');
 const SLOT_COUNT = (env) => Number(env.SLOT_COUNT || 12);
+const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+const itemCode = () => 'LF-' + new Date().getUTCFullYear() + '-' + [...crypto.getRandomValues(new Uint8Array(4))].map((n) => B36[n % 36]).join('');
 async function occupiedSlots(db) {
   const r = await db.prepare("SELECT slot_no FROM items WHERE slot_no IS NOT NULL AND status IN ('in_stock','claim_pending','ready')").all();
-  return new Set(r.results.map(x => x.slot_no));
+  return new Set(r.results.map((x) => x.slot_no));
 }
 export async function report(db, env, req) {
   const form = await req.formData();
@@ -14,12 +18,8 @@ export async function report(db, env, req) {
         location = get('location'), sid = get('student_id'), name = get('name'),
         cls = get('class'), vq = get('verify_q'), va = get('verify_a');
   if (!/^\d{7}$/.test(sid)) return Response.json({ ok: false, error: 'BAD_STUDENT_ID' }, { status: 400 });
-  if (!title || !category || !location)
-    return Response.json({ ok: false, error: 'MISSING_FIELDS' }, { status: 400 });
-  // 身份 upsert（轻量身份，不注册）
-  await db.prepare('INSERT INTO identities(student_id,name,class) VALUES (?,?,?) ON CONFLICT(student_id) DO UPDATE SET name=excluded.name, class=excluded.class')
-    .bind(sid, name, cls).run();
-  // 照片（可选）：Canvas 前端已去 Exif；后端 Magic Byte + ≤1MB 兜底
+  if (!title || !category || !location) return Response.json({ ok: false, error: 'MISSING_FIELDS' }, { status: 400 });
+  // 照片（可选）先校验，避免副作用
   let photoPath = null;
   const file = form.get('photo');
   if (file && typeof file === 'object') {
@@ -27,19 +27,26 @@ export async function report(db, env, req) {
     const chk = checkImage(bytes);
     if (!chk.ok) return Response.json({ ok: false, error: chk.error }, { status: 400 });
     photoPath = `photos/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${chk.kind === 'png' ? 'png' : 'jpg'}`;
-    await env.PHOTOS?.put(photoPath, bytes);   // R2 可选绑定；无 R2 时仅存路径占位
+    await env.PHOTOS?.put(photoPath, bytes, { httpMetadata: { contentType: chk.kind === 'png' ? 'image/png' : 'image/jpeg' } });
   }
-  const now = new Date();
-  const iso = now.toISOString();
-  const code = `LF-${now.getUTCFullYear()}-${String(now.getTime()).slice(-4)}${String(Math.floor(Math.random() * 10))}`;
-  // created_at/updated_at 显式写 JS UTC ISO（带 T）——避免 SQLite datetime('now') 空格格式被按本地时区解析
-  // verify_q/verify_a 改为可选（全凭自觉：不做强制核验门槛）
-  const ins = await db.prepare(`INSERT INTO items(code,title,description,category,location,photo_path,verify_q,verify_a,value_tier,status,registered_by,registered_via,found_at,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,'registered',?,?,?,?,?)`)
-    .bind(code, title, desc, category, location, photoPath, vq || null, va || null, tierOf(category),
-          sid, get('via') === 'kiosk' ? 'kiosk' : 'phone',
-          iso, iso, iso).run();
-  // 登记即入库：乐观锁循环分配最小空闲格（原 confirm-drop 的动态分格并入本端点）
+  // 身份：首写为准；已存在须姓名匹配（防劫持）
+  const idn = await upsertIdentitySafe(db, { student_id: sid, name, class: cls });
+  if (!idn.ok) return Response.json({ ok: false, error: idn.error }, { status: 403 });
+  const iso = new Date().toISOString();
+  // 物品码：crypto 随机 base36×4，UNIQUE 冲突重试
+  let ins = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      ins = await db.prepare(`INSERT INTO items(code,title,description,category,location,photo_path,verify_q,verify_a,value_tier,status,registered_by,registered_via,found_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,'registered',?,?,?,?,?)`)
+        .bind(itemCode(), title, desc, category, location, photoPath, vq || null, va || null, tierOf(category),
+              sid, get('via') === 'kiosk' ? 'kiosk' : 'phone', iso, iso, iso).run();
+      break;
+    } catch (e) {
+      if (!String(e && e.message || e).includes('UNIQUE')) throw e;
+    }
+  }
+  if (!ins) return Response.json({ ok: false, error: 'CODE_RETRY' }, { status: 503 });
   const itemId = ins.meta.last_row_id;
   const used = await occupiedSlots(db);
   let slot = null;
@@ -49,6 +56,9 @@ export async function report(db, env, req) {
       .bind(n, iso, itemId).run();
     if (r.meta.changes === 1) { slot = n; break; }
   }
-  if (!slot) return Response.json({ ok: false, error: 'SLOTS_FULL' }, { status: 507 });
-  return Response.json({ ok: true, code, slot_no: slot });
+  if (!slot) {   // 格满：清理刚插入的悬空行
+    await db.prepare("DELETE FROM items WHERE id=? AND status='registered'").bind(itemId).run();
+    return Response.json({ ok: false, error: 'SLOTS_FULL' }, { status: 507 });
+  }
+  return Response.json({ ok: true, code: (await db.prepare('SELECT code FROM items WHERE id=?').bind(itemId).first()).code, slot_no: slot });
 }

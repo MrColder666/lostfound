@@ -4,8 +4,6 @@ export function genCode() {
   crypto.getRandomValues(buf);
   return Array.from(buf, n => n % 10).join('');
 }
-export const dropExpiry = (now = new Date(), ttlMin = 15) =>
-  new Date(now.getTime() + ttlMin * 60000).toISOString();
 export const pickupExpiry = (now = new Date(), ttlHours = 48) =>
   new Date(now.getTime() + ttlHours * 3600000).toISOString();
 export function isExpired(iso, nowIso = new Date().toISOString()) {

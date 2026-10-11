@@ -51,7 +51,7 @@ test('report：学号格式非法 → 400', async () => {
 });
 
 // ---- 任务 8：kiosk ----
-import { verifyPickup, fulfill } from '../src/api/kiosk.js';
+import { fulfill } from '../src/api/kiosk.js';
 const jr = (o) => new Request('https://x/', { method: 'POST', body: JSON.stringify(o), headers: { 'content-type': 'application/json' } });
 const mkReport = () => { const f = new FormData(); f.set('title','Blue umbrella'); f.set('description','Long handle, wrapped with white tape'); f.set('category','other'); f.set('location','Main building 1F'); f.set('student_id','9031622'); f.set('name','Alex Wang'); f.set('class','7(3)'); f.set('verify_q','What is on the handle?'); f.set('verify_a','white tape'); return new Request('https://x/api/report', { method: 'POST', body: f }); };
 test('fulfill 乐观锁：重复核销第二次 → 409；出库后积分入账（受月上限）', async () => {
@@ -62,12 +62,32 @@ test('fulfill 乐观锁：重复核销第二次 → 409；出库后积分入账�
   const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
   await db.prepare(`INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_code,pickup_expires_at)
     VALUES (?, '9031623', 'white tape', 'approved', '472916', '2026-12-01T00:00:00Z')`).bind(itemId).run();
-  const f1 = await fulfill(db, env, jr({ pickup_code: '472916' }));
+  const claimId = (await db.prepare("SELECT id FROM claims WHERE item_id=?").bind(itemId).first()).id;
+  const cred = { claim_id: String(claimId), student_id: '9031623', name: 'Leo Li', pin: '1234' };   // v1.6.0：身份通道（无码）
+  const f1 = await fulfill(db, env, jr(cred));
   assert.equal(f1.status, 200);
-  const f2 = await fulfill(db, env, jr({ pickup_code: '472916' }));
+  const f2 = await fulfill(db, env, jr(cred));
   assert.equal(f2.status, 409);                          // 乐观锁拦截重复核销
   const led = await db.prepare("SELECT delta FROM points_ledger WHERE reason='claim_reward'").all();
   assert.equal(led.results.length, 1);
+});
+test('fulfill：PIN 错误 → 403（计数防爆破）', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
+  await db.prepare("INSERT INTO identities SET pin_hash='s$h' WHERE 1=0").run().catch(() => {});   // noop 防误用
+  const reg = await (await report(db, env, await mkReport())).json();
+  const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
+  await db.prepare("INSERT INTO claims(item_id,claimant_id,status,pickup_expires_at) VALUES (?, '9031623', 'auto_approved', '2099-12-01T00:00:00Z')").bind(itemId).run();
+  const claimId = (await db.prepare("SELECT id FROM claims WHERE item_id=?").bind(itemId).first()).id;
+  await fulfill(db, env, jr({ claim_id: String(claimId), student_id: '9031623', name: 'Leo Li', pin: '1234' }));  // 首次设置 PIN
+  // 造第二件物品再验证错误 PIN 的拒绝路径
+  await (await report(db, env, await mkReport())).json();
+  const item2 = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
+  await db.prepare("INSERT INTO claims(item_id,claimant_id,status,pickup_expires_at) VALUES (?, '9031623', 'auto_approved', '2099-12-01T00:00:00Z')").bind(item2).run();
+  const claim2 = (await db.prepare("SELECT id FROM claims WHERE item_id=?").bind(item2).first()).id;
+  const bad = await fulfill(db, env, jr({ claim_id: String(claim2), student_id: '9031623', name: 'Leo Li', pin: '0000' }));
+  assert.equal(bad.status, 403);
+  assert.equal((await bad.json()).error, 'PIN_INCORRECT');
 });
 
 // ---- 任务 9：claims ----
@@ -80,29 +100,30 @@ async function mkInStock(db, { vq = 'What is on the handle?', va = 'white tape',
     .bind(tier, vq, va, createdAt).run();
   return (await db.prepare("SELECT id FROM items WHERE code='LF-T-0001'").first()).id;
 }
-test('答对 + 无竞争 + 已出冷冻期 → auto_approved 发领取码', async () => {
+test('答对 + 无竞争 + 已出冷冻期 → auto_approved（v1.6.0：无领取码，预留物品）', async () => {
   const db = fakeDb(SCHEMA);
   const itemId = await mkInStock(db);   // created_at 已拨回 2 小时前 = 出冷冻期
-  const res = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', verify_answer: 'white tape' }));
+  const res = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '1234', verify_answer: 'white tape' }));
   const body = await res.json();
   assert.equal(body.status, 'auto_approved');
-  assert.match(body.pickup_code, /^\d{6}$/);
+  assert.equal(body.pickup_code, undefined);                              // 领取码通道已下线
+  assert.match(body.pickup_expires_at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal((await db.prepare('SELECT status FROM items WHERE id=?').bind(itemId).first()).status, 'ready');
 });
 test('答错也当场自动通过（全凭自觉），答案留档供 admin 参考', async () => {
   const db = fakeDb(SCHEMA);
   await mkInStock(db);
-  const body = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', verify_answer: 'red pattern' }))).json();
+  const body = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '1234', verify_answer: 'red pattern' }))).json();
   assert.equal(body.status, 'auto_approved');
-  assert.match(body.pickup_code, /^\d{6}$/);
+  assert.equal(body.pickup_code, undefined);
   const row = await db.prepare('SELECT verify_answer FROM claims WHERE id=?').bind(body.id).first();
   assert.equal(row.verify_answer, 'red pattern');
 });
 test('冷冻期不再拦截：刚入库也可当场认领通过，物品转为 ready', async () => {
   const db = fakeDb(SCHEMA);
   await mkInStock(db, { createdAt: new Date(Date.now() - 5 * 60000).toISOString() });   // 5 分钟前入库
-  const body = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', verify_answer: 'white tape' }))).json();
+  const body = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '1234', verify_answer: 'white tape' }))).json();
   assert.equal(body.status, 'auto_approved');
-  assert.match(body.pickup_code, /^\d{6}$/);
   const it = await db.prepare('SELECT status FROM items WHERE id=1').first();
   assert.equal(it.status, 'ready');                      // 物品预留给认领人，离开公示板
 });
@@ -110,16 +131,16 @@ test('先到先得：第一人当场通过并预留物品，第二人无法再�
   const db = fakeDb(SCHEMA);
   await mkInStock(db, { createdAt: new Date(Date.now() - 30 * 60000).toISOString() });
   await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031622','Alex Wang','7(3)')").run();
-  const first = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', verify_answer: 'white tape' }))).json();
+  const first = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '1111', verify_answer: 'white tape' }))).json();
   assert.equal(first.status, 'auto_approved');
-  const second = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031622', name: 'Alex Wang', class: '7(3)', verify_answer: 'white tape' }));
+  const second = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031622', name: 'Alex Wang', class: '7(3)', pin: '2222', verify_answer: 'white tape' }));
   assert.equal(second.status, 404);                       // 物品已预留给第一人
   assert.equal((await second.json()).error, 'ITEM_NOT_CLAIMABLE');
 });
 test('秒领黄标：入库 10 分钟内被认领 → risk_flags 记录 SNATCH_10MIN', async () => {
   const db = fakeDb(SCHEMA);
   await mkInStock(db, { createdAt: new Date(Date.now() - 5 * 60000).toISOString() });
-  await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', verify_answer: 'white tape' }));
+  await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '1234', verify_answer: 'white tape' }));
   const flag = await db.prepare("SELECT COUNT(*) c FROM risk_flags WHERE subject_type='item' AND reason='SNATCH_10MIN'").first();
   assert.ok(flag.c >= 1);
 });
@@ -135,6 +156,14 @@ test('查询分级：仅学号 → total+contributions；带姓名 → 明细', 
   assert.equal(full.total, 10); assert.equal(full.ledger.length, 1);
   const bad = await pointsQuery(db, env, new Request('https://x/api/points/9031622?name=' + encodeURIComponent('张三')));
   assert.equal(bad.status, 403);                    // 二次校验失败
+  // v1.6.0：PIN 路径（先设置 PIN，再验证 对/错）
+  const { hashPin } = await import('../src/lib/pin.js');
+  await db.prepare('UPDATE identities SET pin_hash=? WHERE student_id=?').bind(await hashPin('4321'), '9031622').run();
+  const pinOk = await (await pointsQuery(db, env, new Request('https://x/api/points/9031622?pin=4321'))).json();
+  assert.equal(pinOk.total, 10);
+  assert.equal(pinOk.ledger.length, 1);
+  const pinBad = await pointsQuery(db, env, new Request('https://x/api/points/9031622?pin=0000'));
+  assert.equal(pinBad.status, 403);
 });
 test('打赏三限：成功一次后重复 → 409（唯一索引兜底）', async () => {
   const db = fakeDb(SCHEMA); await seed(db);
@@ -145,40 +174,57 @@ test('打赏三限：成功一次后重复 → 409（唯一索引兜底）', asy
   const ok2 = await tip(db, env, jr({ claim_id: 9, from: '9031623', to: '9031622', points: 5 }));
   assert.equal(ok2.status, 409);
 });
-test('兑换：余额不足 402；成功则扣分+订单 pending', async () => {
+test('兑换：需身份+PIN；成功后扣分+订单；售罄 409 且不二次扣分', async () => {
   const db = fakeDb(SCHEMA); await seed(db);
-  await db.prepare("INSERT INTO rewards(id,name,name_en,cost,stock) VALUES (1,'文具套装','Stationery',40,3)").run();
-  await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES ('9031622',50,'claim_reward','2026-10')").run();
-  const ok = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1 }));
+  await db.prepare("INSERT INTO rewards(id,name,name_en,cost,stock) VALUES (1,'文具套装','Stationery',40,1)").run();
+  await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES ('9031622',100,'claim_reward','2026-10')").run();
+  const noName = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1 }));
+  assert.equal(noName.status, 403);                                  // v1.6.0：兑换必须姓名匹配
+  const noPin = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1, name: 'Alex Wang' }));
+  assert.equal(noPin.status, 400);                                   // PIN 缺失
+  const ok = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1, name: 'alex wang', pin: '1234' }));  // 归一化姓名 + 首次设置 PIN
   assert.equal(ok.status, 200);
-  const poor = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1 }));  // 余额已扣 40，剩 10 < 40
-  assert.equal(poor.status, 402);
+  assert.equal((await db.prepare('SELECT stock FROM rewards WHERE id=1').first()).stock, 0);
+  const sold = await redeem(db, env, jr({ student_id: '9031622', reward_id: 1, name: 'Alex Wang', pin: '1234' }));
+  assert.equal(sold.status, 409);                                    // 售罄：库存门拦截（不产生订单、不扣分）
+  assert.equal((await sold.json()).error, 'OUT_OF_STOCK');
+  const bal = await db.prepare("SELECT COALESCE(SUM(delta),0) t FROM points_ledger WHERE student_id='9031622'").first();
+  assert.equal(bal.t, 60);                                           // 100 - 40，只扣一次
 });
 
 // ---- 任务 11：admin + worker ----
 import { admin } from '../src/api/admin.js';
 const adminReq = (path, token = 'T0KEN') => new Request('https://x' + path, { headers: { 'X-Admin-Token': token } });
-test('admin：无 token → 401；有 token → 复核队列', async () => {
+test('admin：无 token → 401；错误 token 计数限流 → 429', async () => {
   const db = fakeDb(SCHEMA);
-  assert.equal((await admin(db, env, new Request('https://x/api/admin/queue'), '')).status, 401);   // 无头无参 → 401
-  assert.equal((await admin(db, env, adminReq('/api/admin/queue', 'WRONG'), '')).status, 401);     // 错误头令牌 → 401
-  // 修正：queue 查询 INNER JOIN identities，认领人身份行必须存在（真实流程 claims() 会先 upsert）
-  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
-  await db.prepare("INSERT INTO claims(id,item_id,claimant_id,status) VALUES (1,1,'9031623','in_review')").run();
-  await db.prepare("INSERT INTO items(id,code,title,category,location,registered_by,registered_via,found_at,status) VALUES (1,'LF-1','Thermos','clothing','x','9031622','phone','2026-10-07T00:00:00Z','in_stock')").run();  // 修正：补齐 items 各 NOT NULL 列
-  const res = await admin(db, env, adminReq('/api/admin/queue'), 'T0KEN');
-  const body = await res.json();
-  assert.equal(body.ok, true); assert.equal(body.queue[0].claim_id, 1);
+  assert.equal((await admin(db, env, new Request('https://x/api/admin/stats'), '')).status, 401);
+  assert.equal((await admin(db, env, adminReq('/api/admin/stats', 'WRONG'), '')).status, 401);
+  for (let i = 0; i < 4; i++) await admin(db, env, adminReq('/api/admin/stats', 'WRONG'), '');
+  const blockedRes = await admin(db, env, adminReq('/api/admin/stats', 'WRONG'), '');
+  assert.equal(blockedRes.status, 429);          // 第 6 次起被限流（5 次/10 分钟/IP）
+  const okRes = await admin(db, env, adminReq('/api/admin/stats'), 'T0KEN');
+  assert.equal(okRes.status, 200);               // 正确口令不受限流影响
+  assert.equal((await okRes.json()).ok, true);
 });
-test('admin：复核通过 → 发领取码（写审计）', async () => {
+test('admin/flags：列出/处理黄标', async () => {
   const db = fakeDb(SCHEMA);
-  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
-  await db.prepare("INSERT INTO claims(id,item_id,claimant_id,status) VALUES (1,1,'9031623','in_review')").run();
-  const res = await admin(db, env, new Request('https://x/api/admin/review', { method: 'POST', headers: { 'X-Admin-Token': 'T0KEN', 'content-type': 'application/json' }, body: JSON.stringify({ claim_id: 1, decision: 'approve' }) }), 'T0KEN');
-  assert.equal((await res.json()).ok, true);
-  const c = await db.prepare('SELECT status, pickup_code FROM claims WHERE id=1').first();
-  assert.equal(c.status, 'approved'); assert.match(c.pickup_code, /^\d{6}$/);
-  assert.equal((await db.prepare("SELECT COUNT(*) c FROM admin_audit").first()).c, 1);
+  await db.prepare("INSERT INTO risk_flags(subject_type,subject_id,reason) VALUES ('item','1','SNATCH_10MIN')").run();
+  const list = await (await admin(db, env, adminReq('/api/admin/flags'))).json();
+  assert.equal(list.flags.length, 1);
+  await admin(db, env, new Request('https://x/api/admin/flags/resolve', { method: 'POST', headers: { 'X-Admin-Token': 'T0KEN', 'content-type': 'application/json' }, body: JSON.stringify({ id: list.flags[0].id }) }), 'T0KEN');
+  assert.equal((await (await admin(db, env, adminReq('/api/admin/flags'))).json()).flags.length, 0);
+});
+test('admin/identities：搜索 / 改名 / 重置 PIN（写审计）', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("UPDATE identities SET pin_hash='s$h' WHERE student_id='9031622'").run();
+  const upd = await admin(db, env, adminCall('/api/admin/identities', 'POST', { student_id: '9031622', name: 'Alex W. Wang' }), 'T0KEN');
+  assert.equal(upd.status, 200);
+  assert.equal((await db.prepare("SELECT name FROM identities WHERE student_id='9031622'").first()).name, 'Alex W. Wang');
+  await admin(db, env, adminCall('/api/admin/identities', 'POST', { student_id: '9031622', reset_pin: true }), 'T0KEN');
+  assert.equal((await db.prepare("SELECT pin_hash FROM identities WHERE student_id='9031622'").first()).pin_hash, null);
+  const search = await (await admin(db, env, adminReq('/api/admin/identities?q=9031'))).json();
+  assert.equal(search.identities.length, 1);
+  assert.ok((await db.prepare("SELECT COUNT(*) c FROM admin_audit").first()).c >= 2);
 });
 
 // ---- 修复回归：UTC ISO 时间 + 非法学号 400 ----
@@ -225,16 +271,20 @@ test('fulfill multipart：存证照片写入 PHOTOS 且 evidence_photo_path 落�
   await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
   const reg = await (await report(db, env, await mkReport())).json();
   const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
-  await db.prepare(`INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_code,pickup_expires_at)
-    VALUES (?, '9031623', 'white tape', 'approved', '472916', '2026-12-01T00:00:00Z')`).bind(itemId).run();
+  await db.prepare(`INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_expires_at)
+    VALUES (?, '9031623', 'white tape', 'auto_approved', '2026-12-01T00:00:00Z')`).bind(itemId).run();
+  const claimId2 = (await db.prepare("SELECT id FROM claims WHERE item_id=?").bind(itemId).first()).id;
   let storedKey = null;
   const photos = { put: async (k) => { storedKey = k; }, get: async () => null };
   const fd = new FormData();
-  fd.set('pickup_code', '472916');
+  fd.set('claim_id', String(claimId2));
+  fd.set('student_id', '9031623');
+  fd.set('name', 'Leo Li');
+  fd.set('pin', '1234');
   fd.set('photo', new File([new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4])], 'ev.jpg', { type: 'image/jpeg' }));
   const f1 = await fulfill(db, { PHOTOS: photos }, new Request('https://x/api/kiosk/fulfill', { method: 'POST', body: fd }));
   assert.equal(f1.status, 200);
-  const c = await db.prepare("SELECT status, evidence_photo_path FROM claims WHERE pickup_code='472916'").first();
+  const c = await db.prepare("SELECT status, evidence_photo_path FROM claims WHERE id=?").bind(claimId2).first();
   assert.equal(c.status, 'fulfilled');
   assert.match(c.evidence_photo_path, /^evidence\//);
   assert.match(storedKey, /^evidence\//);
@@ -251,12 +301,12 @@ async function mkApprovedClaim(db, code = '472916') {
   return { itemId, claimId };
 }
 const evPhoto = () => new File([new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4])], 'ev.jpg', { type: 'image/jpeg' });
-const idForm = (claimId, nm) => { const fd = new FormData(); fd.set('claim_id', String(claimId)); fd.set('student_id', '9031623'); fd.set('name', nm); fd.set('photo', evPhoto()); return fd; };
+const idForm = (claimId, nm, pin = '1234') => { const fd = new FormData(); fd.set('claim_id', String(claimId)); fd.set('student_id', '9031623'); fd.set('name', nm); fd.set('pin', pin); fd.set('photo', evPhoto()); return fd; };
 const idFulfill = (db, photos, fd) => fulfill(db, { PHOTOS: photos }, new Request('https://x/api/kiosk/fulfill', { method: 'POST', body: fd }));
 test('身份查询：学号 + 姓名匹配 → 返回待领取项，且响应中不含领取码', async () => {
   const db = fakeDb(SCHEMA); await seed(db);
   await mkApprovedClaim(db);
-  const body = await (await lookupClaims(db, env, jr({ student_id: '9031623', name: 'Leo Li' }))).json();
+  const body = await (await lookupClaims(db, env, jr({ student_id: '9031623', name: 'Leo Li', pin: '1234' }))).json();
   assert.equal(body.ok, true);
   assert.equal(body.claims.length, 1);
   assert.equal(body.claims[0].claimable, true);
@@ -265,9 +315,9 @@ test('身份查询：学号 + 姓名匹配 → 返回待领取项，且响应中
 test('身份查询：学号不存在 → 404；姓名不匹配 → 403', async () => {
   const db = fakeDb(SCHEMA); await seed(db);
   await mkApprovedClaim(db);
-  const miss = await lookupClaims(db, env, jr({ student_id: '9999999', name: '谁' }));
+  const miss = await lookupClaims(db, env, jr({ student_id: '9999999', name: '谁', pin: '1234' }));
   assert.equal(miss.status, 404);
-  const bad = await lookupClaims(db, env, jr({ student_id: '9031623', name: '张三' }));
+  const bad = await lookupClaims(db, env, jr({ student_id: '9031623', name: '张三', pin: '1234' }));
   assert.equal(bad.status, 403);
   assert.equal((await bad.json()).error, 'NAME_MISMATCH');
 });
@@ -317,9 +367,9 @@ async function mkHandout(db) {
   await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)') ON CONFLICT(student_id) DO NOTHING").run();
   const reg = await (await report(db, env, await mkReport())).json();
   const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
-  await db.prepare("INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_code,pickup_expires_at) VALUES (?, '9031623', 'x', 'approved', '111111', '2099-12-31T00:00:00Z')").bind(itemId).run();
-  const claimId = (await db.prepare("SELECT id FROM claims WHERE pickup_code='111111'").first()).id;
-  const f = await fulfill(db, env, jr({ pickup_code: '111111' }));
+  await db.prepare("INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_expires_at) VALUES (?, '9031623', 'x', 'auto_approved', '2099-12-31T00:00:00Z')").bind(itemId).run();
+  const claimId = (await db.prepare("SELECT id FROM claims WHERE item_id=?").bind(itemId).first()).id;
+  const f = await fulfill(db, env, jr({ claim_id: String(claimId), student_id: '9031623', name: 'Leo Li', pin: '1234' }));
   assert.equal(f.status, 200);
   return { itemId, claimId };
 }
@@ -381,4 +431,66 @@ test('public catalog exposes the icon field', async () => {
   await db.prepare("INSERT INTO rewards(id,name,name_en,cost,stock,active,icon) VALUES (1,'Pencil','Pencil',10,5,1,'✏️')").run();
   const body = await (await listRewards(db, env, new Request('https://x/api/rewards'))).json();
   assert.equal(body.rewards[0].icon, '✏️');
+});
+
+// ---- v1.6.0 安全加固回归 ----
+test('身份防劫持：已存在学号用不同姓名 → 403，且原名不被覆盖', async () => {
+  const db = fakeDb(SCHEMA);
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
+  await mkInStock(db);
+  const res = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Hacker Name', class: '9(9)', pin: '1234', verify_answer: 'x' }));
+  assert.equal(res.status, 403);
+  assert.equal((await res.json()).error, 'IDENTITY_NAME_MISMATCH');
+  assert.equal((await db.prepare("SELECT name FROM identities WHERE student_id='9031623'").first()).name, 'Leo Li');
+});
+test('认领防刷：活跃上限 3 → 429 TOO_MANY_ACTIVE', async () => {
+  const db = fakeDb(SCHEMA);
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
+  for (let i = 0; i < 3; i++)
+    await db.prepare("INSERT INTO claims(item_id,claimant_id,status,pickup_expires_at) VALUES (?, '9031623', 'auto_approved', '2099-01-01T00:00:00Z')").bind(100 + i).run();
+  await mkInStock(db);
+  const res = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '1234', verify_answer: 'x' }));
+  assert.equal(res.status, 429);
+  assert.equal((await res.json()).error, 'TOO_MANY_ACTIVE');
+});
+test('认领防刷：日上限 5 → 429 TOO_MANY_TODAY（已过期的不占活跃名额）', async () => {
+  const db = fakeDb(SCHEMA);
+  await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
+  const iso = new Date().toISOString();
+  for (let i = 0; i < 5; i++)
+    await db.prepare("INSERT INTO claims(item_id,claimant_id,status,pickup_expires_at,created_at) VALUES (?, '9031623', 'expired', '2020-01-01T00:00:00Z', ?)").bind(200 + i, iso).run();
+  await mkInStock(db);
+  const res = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '1234', verify_answer: 'x' }));
+  assert.equal(res.status, 429);
+  assert.equal((await res.json()).error, 'TOO_MANY_TODAY');
+});
+test('PIN：格式非 4 位 → 400；首设后必须匹配', async () => {
+  const db = fakeDb(SCHEMA);
+  await mkInStock(db);
+  const fmt = await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '12', verify_answer: 'x' }));
+  assert.equal(fmt.status, 400);
+  assert.equal((await fmt.json()).error, 'PIN_FORMAT');
+  const first = await (await claims(db, env, jr({ code: 'LF-T-0001', student_id: '9031623', name: 'Leo Li', class: '7(3)', pin: '2468', verify_answer: 'x' }))).json();
+  assert.equal(first.ok, true);
+  const row = await db.prepare("SELECT pin_hash FROM identities WHERE student_id='9031623'").first();
+  assert.ok(row.pin_hash && row.pin_hash.includes('$'));   // 存的是 PBKDF2 盐+哈希，不是明文
+});
+test('身份查询：缺 PIN → 400；首设生效；之后 PIN 错 → 403', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await mkApprovedClaim(db);
+  const noPin = await lookupClaims(db, env, jr({ student_id: '9031623', name: 'Leo Li' }));
+  assert.equal(noPin.status, 400);
+  const first = await lookupClaims(db, env, jr({ student_id: '9031623', name: 'Leo Li', pin: '1234' }));
+  assert.equal(first.status, 200);                  // 首次使用：设置 PIN 并放行
+  const wrong = await lookupClaims(db, env, jr({ student_id: '9031623', name: 'Leo Li', pin: '9999' }));
+  assert.equal(wrong.status, 403);
+  assert.equal((await wrong.json()).error, 'PIN_INCORRECT');
+});
+test('过期释放：超时未领取 → 物品回公示板、认领单 expired（sweep）', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await db.prepare("INSERT INTO items(id,code,title,category,location,registered_by,registered_via,found_at,status,slot_no) VALUES (5,'LF-EX','x','other','y','9031622','phone','2026-10-01T00:00:00Z','ready',4)").run();
+  await db.prepare("INSERT INTO claims(item_id,claimant_id,status,pickup_expires_at) VALUES (5,'9031623','auto_approved','2026-01-01T00:00:00Z')").run();
+  await settleFreeze(db, env);
+  assert.equal((await db.prepare('SELECT status FROM items WHERE id=5').first()).status, 'in_stock');
+  assert.equal((await db.prepare('SELECT status FROM claims WHERE item_id=5').first()).status, 'expired');
 });

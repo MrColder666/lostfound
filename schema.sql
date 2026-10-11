@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS identities (
   student_id TEXT PRIMARY KEY,            -- 7 位数字
   name TEXT NOT NULL,
   class TEXT NOT NULL,
-  pin_hash TEXT,                          -- 可选：SHA-256(salt+pin)
+  pin_hash TEXT,                          -- 4 位 PIN：PBKDF2-SHA256（salt$hash，100k 迭代）
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS items (
@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS items (
   verify_a TEXT,                          -- 非公开核验答案
   value_tier TEXT NOT NULL DEFAULT 'normal',
   slot_no INTEGER,                        -- confirm-drop 时才写入
-  drop_code TEXT,                         -- 6 位投递凭证码
-  drop_expires_at TEXT,                   -- 凭证过期时刻
+  drop_code TEXT,                         -- 已废弃（v1.3.0 起不再使用，保列不删）
+  drop_expires_at TEXT,                   -- 已废弃（同上）
   status TEXT NOT NULL DEFAULT 'registered', -- registered|voided|in_stock|claim_pending|ready|returned|expired
   registered_by TEXT NOT NULL REFERENCES identities(student_id),
   registered_via TEXT NOT NULL,           -- phone|kiosk
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS claims (
   item_id INTEGER NOT NULL REFERENCES items(id),
   claimant_id TEXT NOT NULL REFERENCES identities(student_id),
   verify_answer TEXT,
-  status TEXT NOT NULL DEFAULT 'pending', -- pending|in_review|approved|rejected|fulfilled
+  status TEXT NOT NULL DEFAULT 'pending', -- pending|in_review|approved|auto_approved|rejected|fulfilled|expired
   pickup_code TEXT UNIQUE,
   pickup_expires_at TEXT,
   review_reason TEXT,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS points_ledger (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id TEXT NOT NULL REFERENCES identities(student_id),
   delta INTEGER NOT NULL,
-  reason TEXT NOT NULL,                   -- claim_reward|tip_in|tip_out|redeem|adjust
+  reason TEXT NOT NULL,                   -- claim_reward|tip_in|tip_out|redeem|adjust|revoke
   ref_type TEXT,                          -- claim|redemption|admin
   ref_id INTEGER,
   month_key TEXT NOT NULL,                -- '2026-10'
@@ -82,4 +82,25 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL, target TEXT, detail TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS rate_events (          -- 敏感端点限流计数（admin / PIN 尝试）
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL, key TEXT NOT NULL, ts INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rate_kind ON rate_events(kind, key, ts);
+CREATE TABLE IF NOT EXISTS settings (             -- 后台可调参数（批次4）
+  key TEXT PRIMARY KEY, value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS admin_sessions (       -- 2FA 通过后的会话令牌
+  token_hash TEXT PRIMARY KEY, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS webauthn_creds (       -- Passkey 凭据（指纹/面容）
+  id TEXT PRIMARY KEY, public_jwk TEXT NOT NULL, alg INTEGER NOT NULL DEFAULT -7,
+  sign_count INTEGER NOT NULL DEFAULT 0, label TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS webauthn_challenges (  -- 一次性挑战
+  key TEXT PRIMARY KEY, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0
 );

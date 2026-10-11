@@ -31,7 +31,7 @@
       <ol class="k-steps">
         <li><span class="mono">1</span> <span data-i18n="k_step1">Found something → register here and the system assigns a numbered slot</span></li>
         <li><span class="mono">2</span> <span data-i18n="k_step2">Place the item in the slot — it goes live on the board automatically</span></li>
-        <li><span class="mono">3</span> <span data-i18n="k_step3">The owner picks it up with a pickup code; the finder earns points</span></li>
+        <li><span class="mono">3</span> <span data-i18n="k_step3">The owner collects it at the kiosk with their student ID; the finder earns points</span></li>
       </ol>
       <p class="k-thanks" data-i18n="k_thanks">Thank you for turning things in 🙏</p>
     </aside>
@@ -118,6 +118,7 @@
       <div class="k-label" data-i18n="k_pick_id_label">Your student ID and name</div>
       <input class="k-input mono k-biginput" id="pickSid" inputmode="numeric" maxlength="7" data-i18n-ph="k_sid_ph" placeholder="7 digits">
       <input class="k-input" id="pickName" data-i18n-ph="k_name_ph" placeholder="Name" style="margin-top:10px">
+      <input class="k-input mono" id="pickPin" inputmode="numeric" maxlength="4" data-i18n-ph="k_pin_ph" placeholder="4-digit PIN" style="margin-top:10px">
       <button class="k-btn k-primary k-wide" id="pickLookup" data-i18n="k_pick_lookup" type="button">Find my item</button>
       <p class="k-hint" data-i18n="k_pick_lookup_hint">Items approved for you appear on the right.</p>
     </div>
@@ -143,6 +144,5 @@
   </div>
 </section>
 
-<script src="/js/vendor/jsQR.js"></script>
 <script type="module" src="/js/kiosk.js"></script>
 </body></html>

@@ -1,5 +1,5 @@
 // public/js/app.js —— hash 路由四视图；路由/字段/错误码以 src/api/*.js + src/worker.js 为准
-import { t, getLang } from './i18n-inline.js';
+import { t } from './i18n-inline.js';
 import { put as idbPut, all as idbAll, del as idbDel } from './idb.js';
 import { sanitize } from './canvas-image.js';
 
@@ -12,7 +12,6 @@ const api = (p, opt) => fetch('/api' + p, opt)
 const CATS = ['electronics', 'card', 'clothing', 'book', 'other'];
 const STATUS_CLS = { in_stock: 'status-ok', ready: 'status-warn', claim_pending: 'status-warn', registered: 'status-warn', returned: '' };
 const STATUS_KEY = { registered: 'status_registered', in_stock: 'status_in_stock', claim_pending: 'status_claim_pending', pending: 'status_pending', ready: 'status_ready', returned: 'status_returned', voided: 'status_voided', expired: 'status_expired' };
-let lang = getLang();
 let countdownTimer = null;
 
 // —— 路由 ——
@@ -66,6 +65,39 @@ function applyStaticTexts() {
 const fmtDate = (iso) => String(iso || '').slice(0, 10);
 const statusBadge = (s) => `<span class="status ${STATUS_CLS[s] || ''}">${t(STATUS_KEY[s] || 'status_registered')}</span>`;
 const errBox = (code, fallback) => `<p class="err">${esc(t('err_' + code) !== 'err_' + code ? t('err_' + code) : (fallback || t('error_generic')))}</p>`;
+
+// —— 离线补发：启动 + 恢复联网时重放队列（IndexedDB）——
+let flushNotice = 0;
+function notify(text) {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:99;background:rgba(32,41,49,.92);color:#fff;font:600 14px var(--font-ui);padding:10px 18px;border-radius:99px';
+  d.textContent = text;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 4000);
+}
+async function flushQueue() {
+  if (!navigator.onLine) return;
+  let items = [];
+  try { items = await idbAll('queue'); } catch { return; }
+  let sent = 0;
+  for (const q of items) {
+    try {
+      const fd = new FormData();
+      for (const [k, v] of q.body) fd.set(k, v);
+      const { status, body } = await api('/report', { method: 'POST', body: fd });
+      if (status === 200 && body.ok) { await idbDel('queue', q.id); sent++; }
+      else if (status >= 400 && status < 500) { await idbDel('queue', q.id); }   // 永久失败（校验不通过）不再重试
+      else break;                                                                 // 5xx / 网络：保留，下次再试
+    } catch { break; }
+  }
+  if (sent > 0) {
+    flushNotice = sent; notify(t('offline_flushed').replace('{n}', sent));
+    const h = location.hash || '#/';
+    if (h === '#/' || h.startsWith('#/?') || h === '') renderHome(new URLSearchParams());
+  }
+}
+window.addEventListener('online', flushQueue);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) flushQueue(); });
 
 // ============ 公示首页 ============
 const cardHtml = (i) => `
@@ -195,6 +227,8 @@ async function renderClaim(id) {
         <label class="field"><span>${t('f_student_id')}</span><input id="c_sid" required inputmode="numeric" pattern="\\d{7}" maxlength="7"></label>
         <label class="field"><span>${t('f_name')}</span><input id="c_name" required maxlength="20"></label>
         <label class="field"><span>${t('f_class')}</span><input id="c_cls" required maxlength="20"></label>
+        <label class="field"><span>${t('pin_label')}</span><input id="c_pin" required inputmode="numeric" pattern="\\d{4}" maxlength="4" placeholder="${t('pin_ph')}">
+          <small class="muted">${t('pin_hint')}</small></label>
         <button class="btn btn-primary" type="submit">${t('claim_submit')}</button>
         <div id="claimMsg"></div>
       </form></div>`
@@ -224,7 +258,7 @@ async function submitClaim(ev, it) {
   const { status, body } = await api('/claims', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ code: it.code, student_id: $('#c_sid').value.trim(), name: $('#c_name').value.trim(),
-      class: $('#c_cls').value.trim(), verify_answer: $('#c_answer').value.trim() }),
+      class: $('#c_cls').value.trim(), pin: $('#c_pin').value.trim(), verify_answer: $('#c_answer').value.trim() }),
   });
   if (status !== 200 || !body.ok) { msg.innerHTML = errBox(body.error, t('err_ITEM_NOT_CLAIMABLE')); return; }
   if (body.status === 'auto_approved')
@@ -233,15 +267,14 @@ async function submitClaim(ev, it) {
   else msg.innerHTML = `<p class="warn-note">${t('claim_review_note')}</p>`;
 }
 
-function renderPickupVoucher({ pickup_code, pickup_expires_at }) {
+function renderPickupVoucher({ pickup_expires_at }) {
   const end = pickup_expires_at ? new Date(pickup_expires_at).getTime() : 0;
   $view.innerHTML = `
   <div class="ticket">
-    <div class="ticket-head"><strong>${t('claim_auto')}</strong><span>${t('pickup_code')}</span></div>
+    <div class="ticket-head"><strong>${t('claim_auto')}</strong><span>${t('claim_reserved_badge')}</span></div>
     <div class="ticket-body">
-      <div class="code-big">${esc(pickup_code)}</div>
       <p class="muted">${t('claim_auto_hint')}</p>
-      ${end ? `<div class="ticket-perf"></div><p class="muted">${t('found_at_label')}: ${fmtDate(new Date(end).toISOString())}</p>` : ''}
+      ${end ? `<div class="ticket-perf"></div><p class="muted">${t('pickup_by_label')}: ${fmtDate(new Date(end).toISOString())}</p>` : ''}
       <p class="muted"><a href="#/">${t('back_home')}</a></p>
     </div>
   </div>`;
@@ -278,7 +311,9 @@ async function checkShopIdentity() {
   const msg = document.getElementById('s_msg');
   if (!/^\d{7}$/.test(sid)) { msg.innerHTML = errBox('BAD_STUDENT_ID', t('err_bad_student_id')); return; }
   msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
-  const { status, body } = await api(`/points/${sid}${name ? `?name=${encodeURIComponent(name)}` : ''}`);
+  const pin = document.getElementById('s_pin') ? document.getElementById('s_pin').value.trim() : '';
+  const qs = name ? `?name=${encodeURIComponent(name)}` : (pin ? `?pin=${encodeURIComponent(pin)}` : '');
+  const { status, body } = await api(`/points/${sid}${qs}`);
   if (status === 404) { msg.innerHTML = errBox('NOT_FOUND', t('points_not_found')); return; }
   if (status === 403) { msg.innerHTML = errBox('FORBIDDEN', t('points_forbidden')); return; }
   if (!body.ok) { msg.innerHTML = errBox(body.error); return; }
@@ -335,8 +370,9 @@ async function redeemReward(rid) {
   if (!shopState.sid) { msg.innerHTML = errBox('UNAUTHORIZED', t('shop_check')); return; }
   const rw = shopCatalog.find((x) => x.id === rid);
   msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
+  const pin = document.getElementById('s_pin') ? document.getElementById('s_pin').value.trim() : '';
   const { status, body } = await api('/redemptions', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ student_id: shopState.sid, reward_id: rid }) });
+    body: JSON.stringify({ student_id: shopState.sid, reward_id: rid, name: shopState.name, pin }) });
   if (status === 200 && body.ok) {
     msg.innerHTML = `
     <div class="ticket">
