@@ -10,10 +10,10 @@ body.k-body {
 
 .k-state { display: none; height: 100vh; flex-direction: column; overflow-y: auto; }   /* 内容超高时可滚动（修复 kiosk 滑不动） */
 .k-state.is-active { display: flex; }
-[data-state="idle"] { background: var(--color-navy); color: var(--color-surface); }
+[data-state="idle"] { background: var(--color-navy); color: var(--color-on-brand); }
 
 .k-offline { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: var(--color-danger);
-  color: var(--color-surface); text-align: center; padding: 8px; font-weight: 700; }
+  color: var(--color-on-brand); text-align: center; padding: 8px; font-weight: 700; }
 
 /* 顶栏 */
 .k-top { display: flex; align-items: center; gap: 12px; padding: 14px 22px;
@@ -36,7 +36,7 @@ body.k-body {
 /* 空闲屏主体 */
 .k-grid { flex: 1; display: grid; grid-template-columns: 1.8fr 1fr; gap: 16px; padding: 18px 22px; min-height: 0; }
 .k-actions { display: grid; grid-template-rows: 1fr 1fr auto; gap: 14px; }
-.k-big { display: flex; align-items: center; gap: 18px; background: var(--color-bar); color: var(--color-surface);
+.k-big { display: flex; align-items: center; gap: 18px; background: var(--color-bar); color: var(--color-on-brand);
   border: none; border-radius: 14px; padding: 20px 26px; cursor: pointer; text-align: left; min-height: 64px; }
 .k-big:hover { background: var(--color-accent); }
 .k-big:is(:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
@@ -44,7 +44,7 @@ body.k-body {
 .k-big-txt { flex: 1; } .k-big-txt b { font: 900 24px var(--font-ui); display: block; }
 .k-big-txt small { font: 400 13px var(--font-ui); opacity: .85; }
 .k-arrow { font: 700 26px var(--font-mono); opacity: .6; }
-.k-big.k-outline { background: transparent; border: 3px solid var(--color-cyan); color: var(--color-surface); }
+.k-big.k-outline { background: transparent; border: 3px solid var(--color-cyan); color: var(--color-on-brand); }
 .k-big.k-outline b { color: var(--color-cyan); }
 .k-big.k-outline:hover { background: rgba(202,240,254,.08); }
 .k-voucher { background: transparent; border: none; color: rgba(255,255,255,.85); font: 400 14px var(--font-ui);
@@ -62,7 +62,7 @@ body.k-body {
   border: 2px solid var(--color-rule); background: var(--color-surface); color: var(--color-ink); cursor: pointer; }
 .k-btn:disabled { opacity: .45; cursor: not-allowed; }
 .k-btn:is(:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
-.k-btn.k-primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
+.k-btn.k-primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-brand); }
 .k-btn.k-primary:hover:not(:disabled) { background: var(--color-accent-hover); }
 .k-btn.k-wide { width: 100%; }
 .k-input { font: 400 16px var(--font-ui); border: 1.5px solid var(--color-rule); border-radius: var(--radius-btn);
@@ -75,7 +75,7 @@ body.k-body {
 .k-chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
 .k-chiprow button { font: 600 15px var(--font-ui); border-radius: var(--radius-pill); padding: 10px 16px;
   border: 1.5px solid var(--color-rule); background: var(--color-surface); color: var(--color-ink); cursor: pointer; }
-.k-chiprow button[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
+.k-chiprow button[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-brand); }
 .k-hint { font: 400 13px var(--font-ui); color: var(--color-muted); margin-top: 10px; }
 
 /* 扫码/输码 */

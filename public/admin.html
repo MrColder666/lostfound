@@ -12,7 +12,7 @@ header.bar .mono { font: 600 12px var(--font-mono); color: var(--color-muted); }
 .spacer { flex: 1; }
 button { font: 600 14px var(--font-ui); border-radius: var(--radius-btn); padding: 9px 14px;
   border: 1.5px solid var(--color-rule); background: var(--color-surface); color: var(--color-ink); cursor: pointer; }
-button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
+button.primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-brand); }
 button.danger { background: transparent; border-color: var(--color-danger); color: var(--color-danger); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 button:is(:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
@@ -22,7 +22,7 @@ input:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--f
 .card { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-card);
   padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow-card); }
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-.tabs button[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
+.tabs button[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-brand); }
 .grid2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; }
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
 h3 { font: 800 15px var(--font-ui); margin-bottom: 8px; }

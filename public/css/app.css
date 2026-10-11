@@ -7,12 +7,12 @@ body { font-family: var(--font-ui); background: var(--color-paper); color: var(-
 .btn { font: 700 14px/1 var(--font-ui); border-radius: var(--radius-btn);
        padding: 12px 16px; border: none; cursor: pointer; text-align: center; }
 .btn:is(:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
-.btn-primary { background: var(--color-accent); color: var(--color-surface); }
+.btn-primary { background: var(--color-accent); color: var(--color-on-brand); }
 .btn-primary:hover { background: var(--color-accent-hover); }
 .btn-ghost { background: transparent; color: var(--color-accent); border: 2px solid var(--color-accent); }
 .chip { font: 500 12px/1 var(--font-ui); border-radius: var(--radius-pill);
         padding: 6px 12px; border: 1px solid var(--color-rule); background: var(--color-surface); }
-.chip[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-surface); }
+.chip[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-brand); }
 .slot-tag { font: 700 12px var(--font-mono); color: var(--color-navy);
             background: var(--color-cyan-soft); border: 1px solid var(--color-rule);
             border-radius: 4px; padding: 2px 8px; }               /* 签名元素：格位牌 */
@@ -22,7 +22,7 @@ body { font-family: var(--font-ui); background: var(--color-paper); color: var(-
 /* 认领券/投递凭证：撕边打孔票据（签名元素） */
 .ticket { background: var(--color-surface); border: 1px solid var(--color-rule);
           border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-card); }
-.ticket-head { background: var(--color-navy); color: var(--color-surface);
+.ticket-head { background: var(--color-navy); color: var(--color-on-brand);
                padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; }
 .ticket-body { padding: 14px 16px 6px; position: relative; }
 .ticket-perf { position: relative; margin: 12px -16px 0; border-top: 2px dashed var(--color-rule); }
@@ -36,7 +36,7 @@ body { font-family: var(--font-ui); background: var(--color-paper); color: var(-
           border-top: 1px solid var(--color-rule); display: flex; justify-content: space-around;
           padding: 8px 0 10px; }
 .tabbar .fab { width: auto; min-width: 48px; height: 48px; padding: 0 16px; border-radius: var(--radius-pill);
-               background: var(--color-accent); color: var(--color-surface); margin-top: -18px;
+               background: var(--color-accent); color: var(--color-on-brand); margin-top: -18px;
                border: 3px solid var(--color-paper); font: 800 13px/1 var(--font-ui);
                display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
 /* 大屏适配（§9.3）：≥768 双列；≥1024 网格三列 + 侧栏 */
@@ -99,10 +99,10 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 @media (min-width: 1024px) {
   .gnav { display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; width: 84px;
     background: var(--color-bar); z-index: 20; }
-  .gnav-logo { height: 64px; background: var(--color-navy); color: var(--color-surface);
+  .gnav-logo { height: 64px; background: var(--color-navy); color: var(--color-on-brand);
     font: 900 15px/64px var(--font-ui); text-align: center; letter-spacing: .5px; }
   .gnav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 4px;
-    color: var(--color-surface); text-decoration: none; font: 600 11px var(--font-ui); opacity: .82; }
+    color: var(--color-on-brand); text-decoration: none; font: 600 11px var(--font-ui); opacity: .82; }
   .gnav-item .gnav-ico { font: 700 20px/1 var(--font-ui); }
   .gnav-item:hover { opacity: 1; background: rgba(255,255,255,.08); }
   .gnav-item[aria-pressed="true"] { opacity: 1; background: var(--color-navy); box-shadow: inset 3px 0 0 var(--color-cyan); }
@@ -113,7 +113,7 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 }
 .hero { position: relative; overflow: hidden; border-radius: var(--radius-card);
   background: linear-gradient(135deg, var(--color-navy), var(--color-bar));
-  color: var(--color-surface); padding: clamp(28px, 6vw, 64px); margin-bottom: var(--space-4);
+  color: var(--color-on-brand); padding: clamp(28px, 6vw, 64px); margin-bottom: var(--space-4);
   box-shadow: var(--shadow-card); }
 .hero::after { content: ''; position: absolute; right: -90px; top: -90px; width: 280px; height: 280px;
   border-radius: 50%; background: rgba(202,240,254,.14); }
@@ -122,9 +122,9 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 .hero-sub { font: 400 15px/1.6 var(--font-ui); opacity: .88; max-width: 52ch; }
 .hero-cta { display: flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap: wrap; position: relative; z-index: 1; }
 .hero-cta .btn { text-decoration: none; display: inline-block; }
-.hero-cta .btn-primary { background: var(--color-surface); color: var(--color-navy); }
-.hero-cta .btn-primary:hover { background: var(--color-cyan-soft); }
-.hero-cta .btn-ghost { border-color: rgba(255,255,255,.55); color: var(--color-surface); background: transparent; }
+.hero-cta .btn-primary { background: var(--color-on-brand); color: var(--color-navy); }
+.hero-cta .btn-primary:hover { background: var(--color-cyan); }
+.hero-cta .btn-ghost { border-color: rgba(255,255,255,.55); color: var(--color-on-brand); background: transparent; }
 .sec-h { font: 800 17px var(--font-ui); margin: var(--space-6) 0 var(--space-3); }
 .how { margin-bottom: var(--space-4); }
 .how-grid { display: grid; gap: var(--space-3); grid-template-columns: 1fr; }
@@ -132,7 +132,7 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 .how-card { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-card);
   padding: var(--space-4); box-shadow: var(--shadow-card); }
 .how-card .how-n { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
-  background: var(--color-accent); color: var(--color-surface); font: 800 13px var(--font-mono); margin-bottom: 8px; }
+  background: var(--color-accent); color: var(--color-on-brand); font: 800 13px var(--font-mono); margin-bottom: 8px; }
 .how-card b { display: block; font: 800 15px var(--font-ui); margin-bottom: 4px; }
 .how-card p { font: 400 13px/1.55 var(--font-ui); color: var(--color-muted); }
 @media (prefers-reduced-motion: no-preference) {

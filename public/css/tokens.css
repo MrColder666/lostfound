@@ -7,6 +7,7 @@
   --color-ink:      #202931;  --color-muted: #5E6B76;
   --color-rule:     #D9E2EE;  --color-paper: #F2F6FB;  --color-surface: #FBFDFF;
   --color-cyan:     #CAF0FE;  --color-cyan-soft: #E8F1FB;
+  --color-on-brand: #FBFDFF;  /* 品牌色实底上的文字/图标（双模式恒定，不随夜间翻转） */
   --color-ok:       #1B7F3B;  --color-ok-soft: #E7F5EB;
   --color-warn:     #9A6B00;  --color-warn-soft: #FBF3DC;
   --color-danger:   #B3362B;  --color-danger-soft: #FBEAE8;
