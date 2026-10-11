@@ -145,7 +145,10 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
   .grid > .card:nth-child(5) { animation-delay: .2s; }
   .grid > .card:nth-child(6) { animation-delay: .25s; }
 }
-@keyframes lf-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+/* v1.7.3：入场动画只做位移不做透明度 —— 页面在 hidden/预渲染状态下 WebKit 会暂停动画，
+   若 from 帧含 opacity:0，内容会「卡死隐形」（Hero/卡片全不见）。改为 transform-only 后，
+   即使动画被暂停，内容也始终可见（仅偏移 10px，无感）。 */
+@keyframes lf-rise { from { transform: translateY(10px); } to { transform: none; } }
 
 /* 登记完成票券：大号格位数字（与 kiosk 格位牌同一视觉语言） */
 .slot-big { font: 800 44px/1.15 var(--font-mono); color: var(--color-navy); letter-spacing: 4px; margin: 6px 0 10px; }
