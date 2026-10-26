@@ -1,6 +1,10 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>L&F · Admin</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png">
+<meta name="theme-color" content="#005EBB">
 <link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/fonts.css">
 <style>
 * { box-sizing: border-box; margin: 0; }
@@ -18,7 +22,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 button:is(:focus-visible) { outline: none; box-shadow: var(--focus-ring); }
 input, textarea, select { font: 400 15px var(--font-ui); border: 1.5px solid var(--color-rule); border-radius: var(--radius-btn);
   padding: 10px 12px; background: var(--color-surface); color: var(--color-ink); }
-input:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--color-accent); }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--color-accent); }
+textarea { width: 100%; font-family: var(--font-mono); font-size: 13px; line-height: 1.45; }
 .card { background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: var(--radius-card);
   padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow-card); }
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -26,6 +31,7 @@ input:focus-visible, textarea:focus-visible { outline: none; box-shadow: var(--f
 .grid2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; }
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
 h3 { font: 800 15px var(--font-ui); margin-bottom: 8px; }
+h4 { font: 800 13.5px var(--font-ui); margin-bottom: 8px; }
 .muted { color: var(--color-muted); font-size: 13px; }
 .mono { font-family: var(--font-mono); }
 .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
@@ -41,6 +47,54 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
 .fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .fgrid label { display: grid; gap: 4px; font: 600 12.5px var(--font-ui); color: var(--color-muted); }
 .small { padding: 6px 10px; font-size: 13px; }
+
+/* —— data tables (students, orders, rewards) —— */
+.tablewrap { overflow-x: auto; margin-top: 10px; border: 1px solid var(--color-rule); border-radius: var(--radius-card); }
+table.table { min-width: 860px; }
+table.table th, table.table td { padding: 9px 10px; font-size: 13.5px; vertical-align: middle; white-space: nowrap; }
+table.table thead th { background: var(--color-surface); font: 700 11.5px var(--font-ui); }
+table.table tbody tr:hover { background: var(--color-paper); }
+table.table tbody tr:last-child td { border-bottom: none; }
+table.table td.num, table.table th.num { text-align: right; font-family: var(--font-mono); }
+table.table .col-check { width: 34px; }
+table.table .col-actions { position: sticky; right: 0; background: var(--color-surface); box-shadow: -8px 0 8px -8px rgba(0,0,0,.14); }
+table.table tbody tr:hover .col-actions { background: var(--color-paper); }
+.rowactions { display: flex; gap: 6px; align-items: center; }
+.th-sort { all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; font: inherit; color: inherit;
+  text-transform: inherit; letter-spacing: inherit; }
+.th-sort:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; border-radius: 4px; }
+.th-sort .arrow { font-size: 9px; opacity: .55; }
+.tbl-empty { padding: 26px 16px; color: var(--color-muted); font-size: 13.5px; }
+.tbl-error { padding: 18px 16px; color: var(--color-danger); font-size: 13.5px; }
+.badge { display: inline-block; font: 700 11.5px var(--font-ui); padding: 2px 9px; border-radius: 99px;
+  background: var(--color-cyan-soft); color: var(--color-navy); }
+.badge.pending { background: var(--color-warn-soft); color: var(--color-warn); }
+.badge.given { background: var(--color-cyan-soft); color: var(--color-navy); }
+.badge.cancelled { background: rgba(32,41,49,.08); color: var(--color-muted); }
+.pager { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.pager b { font: 700 13px var(--font-mono); }
+.bulkbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px;
+  border: 1.5px solid var(--color-accent); border-radius: var(--radius-card); background: var(--color-cyan-soft); }
+.bulkbar b { font: 700 13px var(--font-ui); color: var(--color-navy); }
+.subcard { border: 1px solid var(--color-rule); border-radius: var(--radius-card); padding: 14px; margin: 12px 0 4px; background: var(--color-paper); }
+.im-summary { margin: 10px 0 4px; font-size: 13.5px; }
+.im-summary b { font-family: var(--font-mono); }
+.im-table table.table { min-width: 620px; }
+dialog#modal { border: none; border-radius: var(--radius-card); padding: 0; max-width: min(560px, 92vw); width: 100%;
+  box-shadow: 0 24px 64px rgba(18,26,38,.3); color: var(--color-ink); background: var(--color-surface); }
+dialog#modal::backdrop { background: rgba(18,26,38,.45); }
+.modal-inner { padding: 20px 22px; }
+.modal-inner h3 { margin-bottom: 10px; }
+.modal-inner p { font-size: 14px; margin: 0 0 8px; }
+.modal-inner .muted { font-size: 13px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.modal-list { margin: 6px 0 10px; padding-left: 20px; font-size: 14px; }
+@media (max-width: 900px) {
+  .wrap { padding: 16px 14px 48px; }
+  .tabs button { padding: 8px 11px; font-size: 13px; }
+  table.table th, table.table td { padding: 8px 8px; }
+  .tablewrap { margin-left: -2px; margin-right: -2px; }
+}
 </style>
 </head><body>
 <div class="wrap">
@@ -62,6 +116,7 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
       <button data-tab="handouts" aria-pressed="true">Handouts</button>
       <button data-tab="flags" aria-pressed="false">Risk Flags</button>
       <button data-tab="ops" aria-pressed="false">Operations</button>
+      <button data-tab="students" aria-pressed="false">Students</button>
       <button data-tab="settings" aria-pressed="false">Settings</button>
       <button data-tab="manage" aria-pressed="false">Manage</button>
     </div>
@@ -77,27 +132,33 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
     <div id="tab-flags" class="hidden">
       <div class="card">
         <h3>Risk flags</h3>
-        <p class="muted">Passive signals only — nothing is blocked. Inspect, dismiss, or put an item back on the board.</p>
+        <p class="muted">These are passive signals. Nothing is blocked or held back.</p>
         <div id="flags"></div>
       </div>
     </div>
 
     <div id="tab-ops" class="hidden">
+      <div class="card">
+        <div class="row"><h3 style="flex:1">Redemption orders</h3><span class="muted" id="ordersHint"></span></div>
+        <p class="muted">Hand over a pending order here, or cancel it to send the points back and return the reward to stock.</p>
+        <div id="redemptions" class="muted">Loading…</div>
+      </div>
       <div class="grid2">
-        <div>
-          <div class="card"><h3>Redemption orders</h3><div id="redemptions" class="muted">Loading…</div></div>
-          <div class="card"><h3>Rewards catalog</h3>
-            <div id="rewardsAdmin" class="muted">Loading…</div>
-            <div class="row" style="margin-top:10px">
-              <input id="rwName" placeholder="Name" style="width:180px">
-              <input id="rwIcon" placeholder="Icon" style="width:60px">
-              <input id="rwCost" placeholder="Cost" style="width:80px" type="number">
-              <input id="rwStock" placeholder="Stock" style="width:80px" type="number">
-              <button id="rwSave" class="primary">Add</button>
-            </div>
-            <p class="muted">Editing an existing reward: press Edit, change the fields, then Save.</p>
+        <div class="card">
+          <h3>Rewards catalog</h3>
+          <div id="rewardsAdmin" class="muted">Loading…</div>
+          <div class="row" style="margin-top:12px">
+            <input id="rwName" placeholder="Name" style="width:160px">
+            <input id="rwIcon" placeholder="Icon" style="width:56px">
+            <input id="rwCost" placeholder="Cost" style="width:76px" type="number" min="1">
+            <input id="rwStock" placeholder="Stock" style="width:76px" type="number" min="0">
+            <button id="rwSave" class="primary">Add</button>
           </div>
-          <div class="card"><h3>Points adjustment</h3>
+          <p class="muted">Edit fills the fields above. Use the minus and plus buttons on a row for quick stock changes.</p>
+        </div>
+        <div>
+          <div class="card">
+            <h3>Points adjustment</h3>
             <div class="row">
               <input id="adjSid" placeholder="Student ID" style="width:140px" class="mono">
               <input id="adjDelta" placeholder="±points" style="width:90px" class="mono" type="number">
@@ -105,8 +166,71 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
             </div>
             <p class="muted">Writes to points_ledger (reason=adjust), fully audited.</p>
           </div>
+          <div class="card"><h3>Dashboard</h3><div id="stats" class="muted">Loading…</div></div>
         </div>
-        <div class="card"><h3>Dashboard</h3><div id="stats" class="muted">Loading…</div></div>
+      </div>
+    </div>
+
+    <div id="tab-students" class="hidden">
+      <div class="card">
+        <div class="row">
+          <h3 style="flex:1">Students</h3>
+          <button id="stExport" class="small">Export CSV</button>
+          <button id="stImportToggle" class="small">Import CSV</button>
+          <button id="stNew" class="primary small">Add student</button>
+        </div>
+        <p class="muted">Everyone who has reported, claimed or redeemed something. Search by student ID, name or class.</p>
+
+        <div id="newStudentCard" class="subcard hidden">
+          <h4>Add a student</h4>
+          <div class="fgrid">
+            <label>Student ID (7 digits) <input id="ns_id" inputmode="numeric" maxlength="7" class="mono" placeholder="9031622"></label>
+            <label>Full name <input id="ns_name" maxlength="40" placeholder="Alex Wang"></label>
+            <label>Class <input id="ns_class" maxlength="24" placeholder="7(3)"></label>
+            <label>PIN (optional) <input id="ns_pin" inputmode="numeric" maxlength="4" class="mono" placeholder="Leave blank"></label>
+          </div>
+          <p class="muted">Leave the PIN blank and the student sets one on their first visit.</p>
+          <div class="row"><button id="nsCreate" class="primary small">Create student</button><button id="nsCancel" class="small">Cancel</button><span class="muted" id="nsMsg"></span></div>
+        </div>
+
+        <div id="importCard" class="subcard hidden">
+          <h4>Import students</h4>
+          <p class="muted">Paste a CSV below or pick a file. The header needs student_id, name and class. A student who already exists gets their name and class updated.</p>
+          <div class="row">
+            <input type="file" id="im_file" accept=".csv,text/csv">
+            <span class="muted" id="im_fileName"></span>
+          </div>
+          <textarea id="im_text" rows="6" spellcheck="false" placeholder="student_id,name,class&#10;9031622,Alex Wang,7(3)"></textarea>
+          <div class="row">
+            <button id="im_preview" class="primary small">Preview</button>
+            <button id="im_reset" class="small">Clear</button>
+            <span class="muted" id="im_msg"></span>
+          </div>
+          <div id="im_result"></div>
+        </div>
+
+        <div class="row" style="margin-top:14px">
+          <input id="st_q" placeholder="Search ID, name or class" style="width:260px" autocomplete="off" aria-label="Search students">
+          <span class="muted" id="st_count"></span>
+          <span class="spacer"></span>
+          <label class="muted" style="display:flex;gap:6px;align-items:center">Rows
+            <select id="st_size" aria-label="Rows per page"><option value="20">20</option><option value="50">50</option></select>
+          </label>
+          <button id="st_refresh" class="small">Refresh</button>
+        </div>
+
+        <div id="st_bulk" class="bulkbar hidden">
+          <b id="st_bulkCount">0 selected</b>
+          <input id="st_bulkClass" placeholder="New class" style="width:120px" maxlength="24" aria-label="New class for selected students">
+          <button id="st_bulkClassGo" class="small">Set class</button>
+          <button id="st_bulkPin" class="small">Reset PIN</button>
+          <button id="st_bulkDelete" class="small danger">Delete</button>
+          <span class="spacer"></span>
+          <button id="st_bulkClear" class="small">Clear selection</button>
+        </div>
+
+        <div class="tablewrap"><div id="st_table"></div></div>
+        <div class="pager" id="st_pager"></div>
       </div>
     </div>
 
@@ -130,14 +254,14 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
         <div class="row">
           <label class="mono" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="st_notice_on" style="width:auto"> Show banner on the phone app</label>
         </div>
-        <textarea id="st_notice" rows="2" maxlength="300" style="width:100%" placeholder="e.g. Exams week — check the board before Friday!"></textarea>
+        <textarea id="st_notice" rows="2" maxlength="300" placeholder="e.g. Exams week. Check the board before Friday."></textarea>
         <div class="row"><button id="noticeSave" class="primary">Save banner</button><span class="muted" id="noticeMsg"></span></div>
       </div>
       <div class="card">
         <h3>Security · Two-factor (Passkey)</h3>
         <p class="muted" id="f2aState">Checking…</p>
         <div class="row"><button id="pkRegister" class="primary">Register this device (Touch ID / Face ID)</button></div>
-        <p class="muted">Once a passkey is registered, the passphrase alone no longer opens this console — a device check (Touch ID / Face ID) is required at sign-in. Lost device? Reset needs Cloudflare dashboard access (ask your setup helper).</p>
+        <p class="muted">Once a passkey is registered, the passphrase alone no longer opens this console. A device check (Touch ID / Face ID) is required at sign-in. Lost device? Reset needs Cloudflare dashboard access (ask your setup helper).</p>
       </div>
     </div>
 
@@ -154,21 +278,21 @@ th { font: 700 12.5px var(--font-ui); color: var(--color-muted); text-transform:
         <div id="itemsAdmin" class="muted" style="margin-top:8px">Loading…</div>
       </div>
       <div class="card">
-        <h3>Students (identities)</h3>
-        <div class="row">
-          <input id="id_q" placeholder="Search ID / name" style="width:220px" class="mono">
-          <button id="id_search" class="small">Search</button>
-        </div>
-        <p class="muted">Fix a wrong name/class (keeps the anti-hijack rule intact) or reset a forgotten PIN — the student sets a new one on first use.</p>
-        <div id="identitiesAdmin" class="muted" style="margin-top:8px">Loading…</div>
-      </div>
-      <div class="card">
-        <div class="row"><h3 style="flex:1">Audit log &amp; points ledger</h3><button data-csv="ledger" class="small">Export ledger CSV</button></div>
+        <div class="row"><h3 style="flex:1">Audit log</h3><button data-csv="ledger" class="small">Export ledger CSV</button></div>
+        <p class="muted">Every write above lands here, including the parameters that were used.</p>
         <div id="auditAdmin" class="muted">Loading…</div>
       </div>
     </div>
   </div>
 </div>
+
+<dialog id="modal">
+  <div class="modal-inner">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</dialog>
 
 <script type="module">
 const $ = (s) => document.querySelector(s);
@@ -177,7 +301,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const b64uEncode = (u8) => btoa(String.fromCharCode(...u8)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const b64uDecode = (s) => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 let TOKEN = sessionStorage.getItem('lf_admin') || '';
-let CSV = {};
+const CSV = {};
 const api = async (p, opt = {}) => {
   const r = await fetch('/api' + p, { ...opt, headers: { 'X-Admin-Token': TOKEN, ...(opt.body && !(opt.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...(opt.headers || {}) } });
   const body = await r.json().catch(() => ({}));
@@ -188,7 +312,7 @@ const rawJson = async (p, pass, payload) => {
   const r = await fetch('/api' + p, { method: payload ? 'POST' : 'GET', headers: { 'X-Admin-Token': pass, ...(payload ? { 'content-type': 'application/json' } : {}) }, body: payload ? JSON.stringify(payload) : undefined });
   return { status: r.status, ...(await r.json().catch(() => ({}))) };
 };
-function signOut() { sessionStorage.removeItem('lf_admin'); TOKEN = ''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#logout').classList.add('hidden'); $('#gateErr').textContent = 'Session expired — sign in again.'; }
+function signOut() { sessionStorage.removeItem('lf_admin'); TOKEN = ''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#logout').classList.add('hidden'); $('#gateErr').textContent = 'Session expired. Sign in again.'; }
 $('#logout').addEventListener('click', signOut);
 
 async function enter() {
@@ -226,17 +350,87 @@ async function enter() {
 $('#enter').addEventListener('click', enter);
 $('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
 
+const TABS = ['handouts', 'flags', 'ops', 'students', 'settings', 'manage'];
 $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   $$('.tabs button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
   b.setAttribute('aria-pressed', 'true');
-  ['handouts', 'flags', 'ops', 'settings', 'manage'].forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  TABS.forEach((t) => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
 }));
+
+/* ---------- shared bits ---------- */
+function toast(msg) {
+  const d = document.createElement('div');
+  d.setAttribute('role', 'status');
+  d.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:99;background:rgba(32,41,49,.92);color:#fff;font:600 14px var(--font-ui);padding:10px 18px;border-radius:99px;max-width:90vw;text-align:center';
+  d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 3200);
+}
+
+// Close-button-less dialogs are driven from here: resolve with the chosen action value.
+function showModal({ title, body, actions = [{ label: 'Close', value: null }] }) {
+  return new Promise((resolve) => {
+    const dlg = $('#modal');
+    $('#modalTitle').textContent = title;
+    const bodyEl = $('#modalBody');
+    if (typeof body === 'string') bodyEl.innerHTML = body;
+    else if (body instanceof Node) { bodyEl.replaceChildren(); bodyEl.appendChild(body); }
+    else bodyEl.replaceChildren();
+    const actionsEl = $('#modalActions');
+    actionsEl.replaceChildren();
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return; settled = true;
+      if (dlg.open) dlg.close();
+      resolve(value);
+    };
+    for (const a of actions) {
+      const b = document.createElement('button');
+      b.textContent = a.label;
+      if (a.kind === 'primary') b.className = 'primary';
+      if (a.kind === 'danger') b.className = 'danger';
+      b.addEventListener('click', () => finish(a.value));
+      actionsEl.appendChild(b);
+    }
+    dlg.oncancel = (e) => { e.preventDefault(); finish(null); };
+    if (!dlg.open) dlg.showModal();
+    const focus = actionsEl.querySelector('button');
+    if (focus) focus.focus();
+  });
+}
+const confirmModal = (title, body, confirmLabel = 'Confirm', kind = 'danger') =>
+  showModal({ title, body, actions: [{ label: 'Cancel', value: false }, { label: confirmLabel, value: true, kind }] });
+
+const ERROR_TEXT = {
+  BAD_STUDENT_ID: 'Student ID must be 7 digits.',
+  STUDENT_EXISTS: 'That student ID is already in the system.',
+  NAME_REQUIRED: 'Name is required.',
+  CLASS_REQUIRED: 'Class is required.',
+  NAME_TOO_LONG: 'That name is too long.',
+  CLASS_TOO_LONG: 'That class name is too long.',
+  BAD_PIN: 'PIN must be 4 digits.',
+  NOT_FOUND: 'That record no longer exists.',
+  STUDENT_IN_USE: 'This student still has records attached.',
+  BAD_FIELDS: 'Check the fields and try again.',
+  BAD_ACTION: 'Unknown bulk action.',
+  ALREADY_FULFILLED: 'This order was already given out.',
+  ORDER_CANCELLED: 'This order is cancelled.',
+  NEGATIVE_STOCK: 'Stock is already empty.',
+  BAD_DELTA: 'Enter a whole number other than zero.',
+  REWARD_IN_USE: 'This reward has orders attached.',
+  NOT_PENDING: 'This order is no longer pending.',
+  CSV_EMPTY: 'Paste a CSV or choose a file first.',
+  CSV_BAD_HEADER: 'The header needs student_id, name and class.',
+  CSV_UNTERMINATED_QUOTE: 'A quoted field is missing its closing quote.',
+  TOO_MANY_ROWS: 'That is more than 1000 rows. Split it and import in parts.',
+  CSV_TOO_LARGE: 'That file is too big. Import up to 200 KB at a time.',
+  CANCEL_FAILED: 'The cancellation could not be saved. Try again.',
+};
+const errText = (r, fallback) => (r.body && (r.body.message || ERROR_TEXT[r.body.error])) || fallback || 'Something went wrong.';
 
 async function boot() {
   $('#gate').classList.add('hidden');
   $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
-  await Promise.all([loadHandouts(), loadFlags(), loadOps(), loadSettings(), loadManage()]);
+  await Promise.all([loadHandouts(), loadFlags(), loadOps(), loadSettings(), loadStudents(), loadManage()]);
 }
 
 /* ---------- Handouts ---------- */
@@ -284,7 +478,7 @@ async function loadFlags() {
       + '<td class="mono muted">' + esc(String(f.created_at).slice(0, 16).replace('T', ' ')) + '</td>'
       + '<td><button class="small" data-dismiss="' + f.id + '">Dismiss</button>'
       + (f.subject_type === 'item' ? ' <button class="small" data-reopen-flag="' + esc(f.subject_id) + '">Put back</button>' : '') + '</td></tr>').join('') + '</table>'
-    : '<p class="muted">No flags ✅</p>';
+    : '<p class="muted">No flags.</p>';
   $$('#flags [data-dismiss]').forEach((b) => b.addEventListener('click', async () => {
     const rr = await api('/admin/flags/resolve', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.dismiss) }) });
     toast(rr.status === 200 ? 'Dismissed' : 'Failed');
@@ -298,6 +492,7 @@ async function loadFlags() {
 }
 
 /* ---------- Operations ---------- */
+let rwEditId = null;
 async function loadOps() {
   const s = await api('/admin/stats');
   if (s.status === 200) $('#stats').innerHTML =
@@ -307,44 +502,104 @@ async function loadOps() {
     + '<div class="stat"><b>' + s.body.stats.active_claims + '</b>Active claims</div>';
   await Promise.all([loadRedemptions(), loadRewardsAdmin()]);
 }
-let rwEditId = null;
+
+const ORDER_BADGE = { pending: '<span class="badge pending">Pending</span>', fulfilled: '<span class="badge given">Given</span>', cancelled: '<span class="badge cancelled">Cancelled</span>' };
 async function loadRedemptions() {
   const r = await api('/admin/redemptions');
-  if (r.status !== 200) { $('#redemptions').innerHTML = '<p class="muted">Unavailable</p>'; return; }
+  if (r.status !== 200) { $('#redemptions').innerHTML = '<p class="tbl-error">Could not load orders. <button class="small" id="redoOrders">Try again</button></p>'; $('#redoOrders').addEventListener('click', loadRedemptions); return; }
   const list = r.body.redemptions || [];
-  $('#redemptions').innerHTML = list.length ? list.map((o) => {
-    const who = (o.student_name || o.student_id || '') + (o.student_class ? ' ' + o.student_class : '');
-    const when = String(o.created_at || '').slice(0, 16).replace('T', ' ');
-    const badge = o.status === 'pending' ? '<span class="tag warn">Pending</span>' : '<span class="tag">Given</span>';
-    return '<div class="row" style="align-items:center">'
-      + '<span class="mono">#' + o.id + '</span>'
-      + '<b>' + esc(o.reward_icon || '') + ' ' + esc(o.reward_name || '') + '</b>'
-      + '<span class="muted">' + esc(who) + ' · ' + o.points_cost + ' pts · ' + esc(when) + '</span>'
-      + badge + '<span class="spacer"></span>'
-      + (o.status === 'pending' ? '<button class="primary" data-fulfil="' + o.id + '">Mark as given</button>' : '')
-      + '</div>';
-  }).join('') : '<p class="muted">No orders yet.</p>';
+  const pending = list.filter((o) => o.status === 'pending').length;
+  $('#ordersHint').textContent = pending ? pending + ' waiting at the counter' : 'Nothing waiting';
+  if (!list.length) { $('#redemptions').innerHTML = '<p class="muted">No orders yet. Students can redeem from the shop page.</p>'; return; }
+  $('#redemptions').innerHTML = '<div class="tablewrap"><table class="table" style="min-width:900px"><thead><tr>'
+    + '<th>Order</th><th>Student</th><th>Reward</th><th class="num">Points</th><th>Ordered</th><th>Given</th><th>Status</th><th class="col-actions">Actions</th>'
+    + '</tr></thead><tbody>' + list.map((o) => {
+      const ordered = String(o.created_at || '').slice(0, 16).replace('T', ' ');
+      const given = o.fulfilled_at ? String(o.fulfilled_at).slice(0, 16).replace('T', ' ') : '<span class="muted">not yet</span>';
+      const who = (o.student_name || o.student_id || '') + (o.student_class ? ' · ' + o.student_class : '');
+      let actions = '<span class="muted">No action needed</span>';
+      if (o.status === 'pending') {
+        actions = '<div class="rowactions"><button class="small primary" data-fulfil="' + o.id + '">Mark as given</button>'
+          + '<button class="small danger" data-cancel-order="' + o.id + '">Cancel and refund</button></div>';
+      } else if (o.status === 'cancelled') {
+        actions = '<span class="muted">Points refunded</span>';
+      } else if (o.status === 'fulfilled') {
+        actions = '<span class="muted">Handed over</span>';
+      }
+      return '<tr><td class="mono">#' + esc(o.id) + '</td>'
+        + '<td>' + esc(who) + '<br><span class="mono muted">' + esc(o.student_id) + '</span></td>'
+        + '<td>' + esc(o.reward_icon || '') + ' ' + esc(o.reward_name || 'deleted reward') + '</td>'
+        + '<td class="num">' + esc(o.points_cost) + '</td>'
+        + '<td class="mono muted">' + esc(ordered) + '</td>'
+        + '<td class="mono muted">' + given + '</td>'
+        + '<td>' + (ORDER_BADGE[o.status] || esc(o.status)) + '</td>'
+        + '<td class="col-actions">' + actions + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+
   $$('#redemptions [data-fulfil]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
     const rr = await api('/admin/redemptions/fulfill', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.fulfil) }) });
-    toast(rr.status === 200 ? 'Marked as given' : 'Failed');
-    loadRedemptions();
+    if (rr.status === 200) toast('Marked as given');
+    else if (rr.body.error === 'ALREADY_FULFILLED') toast('This order was already given out.');
+    else toast(errText(rr, 'Could not update this order.'));
+    loadOps();
+  }));
+  $$('#redemptions [data-cancel-order]').forEach((b) => b.addEventListener('click', async () => {
+    const o = list.find((x) => x.id === Number(b.dataset.cancelOrder));
+    if (!o) return;
+    const who = o.student_name || o.student_id;
+    const ok = await confirmModal(
+      'Cancel order #' + o.id + '?',
+      '<p><b>' + esc(o.points_cost) + ' points</b> go back to <b>' + esc(who) + '</b>, and one <b>' + esc(o.reward_name || 'reward') + '</b> goes back in stock.</p>',
+      'Cancel and refund',
+    );
+    if (!ok) return;
+    b.disabled = true;
+    const rr = await api('/admin/redemptions/cancel', { method: 'POST', body: JSON.stringify({ id: o.id }) });
+    if (rr.status === 200 && rr.body.already) toast('This order was already cancelled.');
+    else if (rr.status === 200) toast('Order cancelled. ' + rr.body.refunded_points + ' points refunded.');
+    else if (rr.body.error === 'ALREADY_FULFILLED') toast('This order was already given out, so it cannot be cancelled.');
+    else toast(errText(rr, 'Could not cancel this order.'));
+    loadOps();
   }));
 }
+
 async function loadRewardsAdmin() {
   const r = await api('/admin/rewards');
-  if (r.status !== 200) { $('#rewardsAdmin').innerHTML = '<p class="muted">Unavailable</p>'; return; }
+  if (r.status !== 200) { $('#rewardsAdmin').innerHTML = '<p class="tbl-error">Could not load rewards.</p>'; return; }
   const list = r.body.rewards || [];
-  $('#rewardsAdmin').innerHTML = list.length ? list.map((w) => '<div class="row" style="align-items:center">'
-    + '<b>' + esc(w.icon || '') + ' ' + esc(w.name) + '</b>'
-    + '<span class="mono">' + w.cost + ' pts</span>'
-    + '<span class="muted">stock ' + w.stock + '</span>'
-    + (w.active ? '' : '<span class="tag warn">off</span>')
-    + '<span class="spacer"></span>'
-    + '<button data-editr="' + w.id + '">Edit</button>'
-    + '<button class="danger" data-offr="' + w.id + '">' + (w.active ? 'Hide' : 'Show') + '</button>'
-    + '</div>').join('') : '<p class="muted">No rewards yet — add the first one below.</p>';
+  if (!list.length) { $('#rewardsAdmin').innerHTML = '<p class="muted">No rewards yet. Add the first one below.</p>'; return; }
+  $('#rewardsAdmin').innerHTML = '<div class="tablewrap"><table class="table" style="min-width:640px"><thead><tr>'
+    + '<th>Reward</th><th class="num">Cost</th><th>Stock</th><th>Status</th><th class="col-actions">Actions</th>'
+    + '</tr></thead><tbody>' + list.map((w) => '<tr>'
+      + '<td><b>' + esc(w.icon || '') + ' ' + esc(w.name) + '</b></td>'
+      + '<td class="num">' + esc(w.cost) + '</td>'
+      + '<td><span class="mono">' + esc(w.stock) + '</span> <button class="small" data-rw-minus="' + w.id + '" title="Remove one from stock" aria-label="Remove one from stock">−</button>'
+      + ' <button class="small" data-rw-plus="' + w.id + '" title="Add one to stock" aria-label="Add one to stock">+</button></td>'
+      + '<td>' + (w.active ? '<span class="badge given">Live</span>' : '<span class="badge cancelled">Hidden</span>') + '</td>'
+      + '<td class="col-actions"><div class="rowactions"><button class="small" data-editr="' + w.id + '">Edit</button>'
+      + '<button class="small" data-offr="' + w.id + '">' + (w.active ? 'Hide' : 'Show') + '</button>'
+      + '<button class="small danger" data-delr="' + w.id + '">Delete</button></div></td></tr>').join('')
+    + '</tbody></table></div>';
+
+  const find = (id) => list.find((x) => x.id === Number(id));
+  $$('#rewardsAdmin [data-rw-plus]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    const rr = await api('/admin/rewards/stock', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.rwPlus), delta: 1 }) });
+    if (rr.status === 200) toast('Stock is now ' + rr.body.stock);
+    else toast(errText(rr, 'Could not change stock.'));
+    loadRewardsAdmin();
+  }));
+  $$('#rewardsAdmin [data-rw-minus]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    const rr = await api('/admin/rewards/stock', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.rwMinus), delta: -1 }) });
+    if (rr.status === 200) toast('Stock is now ' + rr.body.stock);
+    else if (rr.body.error === 'NEGATIVE_STOCK') toast('Stock is already empty.');
+    else toast(errText(rr, 'Could not change stock.'));
+    loadRewardsAdmin();
+  }));
   $$('#rewardsAdmin [data-editr]').forEach((b) => b.addEventListener('click', () => {
-    const w = list.find((x) => x.id === Number(b.dataset.editr));
+    const w = find(b.dataset.editr);
     rwEditId = w.id;
     $('#rwName').value = w.name; $('#rwIcon').value = w.icon || '';
     $('#rwCost').value = w.cost; $('#rwStock').value = w.stock;
@@ -352,10 +607,35 @@ async function loadRewardsAdmin() {
     toast('Editing: ' + w.name);
   }));
   $$('#rewardsAdmin [data-offr]').forEach((b) => b.addEventListener('click', async () => {
-    const w = list.find((x) => x.id === Number(b.dataset.offr));
+    const w = find(b.dataset.offr);
     const rr = await api('/admin/rewards', { method: 'POST', body: JSON.stringify({ id: w.id, name: w.name, cost: w.cost, stock: w.stock, icon: w.icon, active: !w.active }) });
     toast(rr.status === 200 ? 'Updated' : 'Failed');
     loadRewardsAdmin();
+  }));
+  $$('#rewardsAdmin [data-delr]').forEach((b) => b.addEventListener('click', async () => {
+    const w = find(b.dataset.delr);
+    const ok = await confirmModal(
+      'Delete "' + w.name + '"?',
+      '<p>No orders use this reward, so it can go. This cannot be undone.</p>',
+      'Delete',
+    );
+    if (!ok) return;
+    const rr = await api('/admin/rewards/delete', { method: 'POST', body: JSON.stringify({ id: w.id }) });
+    if (rr.status === 200) { toast('Reward deleted'); loadRewardsAdmin(); return; }
+    if (rr.body.error === 'REWARD_IN_USE') {
+      const action = await showModal({
+        title: 'This reward cannot be deleted',
+        body: '<p><b>' + esc(rr.body.refs?.orders ?? 0) + ' orders</b> point at it, so deleting would leave them without a reward. Hide it instead so students can no longer redeem it.</p>',
+        actions: [{ label: 'Close', value: null }, { label: 'Hide it instead', value: 'hide', kind: 'primary' }],
+      });
+      if (action === 'hide') {
+        await api('/admin/rewards', { method: 'POST', body: JSON.stringify({ id: w.id, name: w.name, cost: w.cost, stock: w.stock, icon: w.icon, active: false }) });
+        toast('Reward hidden');
+        loadRewardsAdmin();
+      }
+      return;
+    }
+    toast(errText(rr, 'Could not delete this reward.'));
   }));
 }
 $('#rwSave').addEventListener('click', async () => {
@@ -368,7 +648,7 @@ $('#rwSave').addEventListener('click', async () => {
     rwEditId = null; $('#rwSave').textContent = 'Add';
     ['#rwName', '#rwIcon', '#rwCost', '#rwStock'].forEach((x) => { $(x).value = ''; });
     loadRewardsAdmin();
-  } else toast('Check the fields (name, cost > 0, stock ≥ 0)');
+  } else toast('Check the fields (name, cost above 0, stock 0 or more)');
 });
 $('#adjGo').addEventListener('click', async () => {
   const sid = $('#adjSid').value.trim(), delta = Number($('#adjDelta').value);
@@ -388,8 +668,8 @@ async function loadSettings() {
   }
   const w = await api('/admin/webauthn/state');
   if (w.status === 200) $('#f2aState').textContent = w.body.enabled
-    ? ('Two-factor is ON — ' + w.body.count + ' passkey(s) registered.')
-    : 'Two-factor is OFF — the passphrase alone opens this console. Register a passkey to turn it on.';
+    ? ('Two-factor is ON. ' + w.body.count + ' passkey(s) registered.')
+    : 'Two-factor is OFF. The passphrase alone opens this console. Register a passkey to turn it on.';
 }
 $('#setSave').addEventListener('click', async () => {
   const payload = {};
@@ -426,21 +706,383 @@ $('#pkRegister').addEventListener('click', async () => {
       attestationObject: b64uEncode(new Uint8Array(cred.response.attestationObject)),
       clientDataJSON: b64uEncode(new Uint8Array(cred.response.clientDataJSON)),
     });
-    toast(v.ok ? 'Passkey registered — 2FA is now ON ✓' : 'Register failed: ' + v.error);
+    toast(v.ok ? 'Passkey registered. 2FA is now ON.' : 'Register failed: ' + v.error);
     loadSettings();
   } catch (e) { toast('Cancelled or not supported on this device'); }
 });
 
+/* ---------- Students ---------- */
+const ST = { q: '', page: 1, size: 20, sort: 'student_id', dir: 'asc', rows: [], total: 0, pages: 1, selected: new Set(), editing: '', loading: false, error: '', seq: 0 };
+const REF_LABELS = { items: 'items they reported', claims: 'claims', ledger: 'points entries', redemptions: 'orders' };
+const refList = (refs) => Object.entries(refs || {}).filter(([, n]) => n > 0).map(([k, n]) => '<li>' + esc(n) + ' ' + esc(REF_LABELS[k] || k) + '</li>').join('');
+
+function stQuery() {
+  const p = new URLSearchParams({ q: ST.q, page: String(ST.page), page_size: String(ST.size), sort: ST.sort, dir: ST.dir });
+  return '/admin/students?' + p.toString();
+}
+const studentRow = (r) => ST.rows.find((x) => x.student_id === r);
+const selectedIds = () => [...ST.selected];
+
+async function loadStudents() {
+  const seq = ++ST.seq;
+  ST.loading = true; ST.error = ''; ST.selected.clear(); updateBulkBar(); renderStudents();
+  const r = await api(stQuery());
+  if (seq !== ST.seq) return;                    // a newer search/page won the race
+  ST.loading = false;
+  if (r.status !== 200) { ST.error = 'Could not load students.'; renderStudents(); return; }
+  ST.rows = r.body.students || [];
+  ST.total = r.body.total || 0;
+  ST.pages = r.body.pages || 1;
+  ST.page = r.body.page || 1;
+  renderStudents();
+}
+
+function renderStudents() {
+  const host = $('#st_table');
+  $('#st_count').textContent = ST.total ? ST.total + (ST.total === 1 ? ' student' : ' students') : '';
+  if (ST.loading) { host.innerHTML = '<div class="tbl-empty">Loading students…</div>'; renderPager(); return; }
+  if (ST.error) {
+    host.innerHTML = '<div class="tbl-error">' + esc(ST.error) + ' <button class="small" id="st_retry">Try again</button></div>';
+    const retry = $('#st_retry'); if (retry) retry.addEventListener('click', loadStudents);
+    renderPager(); return;
+  }
+  if (!ST.rows.length) {
+    host.innerHTML = '<div class="tbl-empty">' + (ST.q
+      ? 'No students match “' + esc(ST.q) + '”. Try a different student ID, name or class.'
+      : 'No students yet. Add one above, or import a CSV.') + '</div>';
+    renderPager(); return;
+  }
+  const allChecked = ST.rows.every((r) => ST.selected.has(r.student_id));
+  const sortTh = (key, label, num) => {
+    const active = ST.sort === key;
+    const arrow = active ? (ST.dir === 'asc' ? '▲' : '▼') : '';
+    return '<th' + (num ? ' class="num"' : '') + ' aria-sort="' + (active ? (ST.dir === 'asc' ? 'ascending' : 'descending') : 'none') + '">'
+      + '<button class="th-sort" data-st-sort="' + key + '">' + label + ' <span class="arrow">' + arrow + '</span></button></th>';
+  };
+  const body = ST.rows.map((r) => {
+    const editing = ST.editing === r.student_id;
+    const joined = String(r.created_at || '').slice(0, 10);
+    const nameCell = editing
+      ? '<input data-edit-name="' + esc(r.student_id) + '" value="' + esc(r.name) + '" maxlength="40" style="width:150px" aria-label="Name">'
+      : esc(r.name);
+    const classCell = editing
+      ? '<input data-edit-class="' + esc(r.student_id) + '" value="' + esc(r.class) + '" maxlength="24" style="width:90px" aria-label="Class">'
+      : esc(r.class);
+    const actions = editing
+      ? '<div class="rowactions"><button class="small primary" data-st-save="' + esc(r.student_id) + '">Save</button>'
+        + '<button class="small" data-st-cancel="' + esc(r.student_id) + '">Cancel</button></div>'
+      : '<div class="rowactions"><button class="small" data-st-edit="' + esc(r.student_id) + '">Edit</button>'
+        + '<button class="small danger" data-st-del="' + esc(r.student_id) + '">Delete</button></div>';
+    return '<tr>'
+      + '<td class="col-check"><input type="checkbox" data-st-select="' + esc(r.student_id) + '"'
+        + (ST.selected.has(r.student_id) ? ' checked' : '') + ' aria-label="Select ' + esc(r.student_id) + '"></td>'
+      + '<td class="mono">' + esc(r.student_id) + '</td>'
+      + '<td>' + nameCell + '</td>'
+      + '<td>' + classCell + '</td>'
+      + '<td class="num">' + esc(r.points) + '</td>'
+      + '<td class="num" title="' + esc(r.returns + ' of ' + r.handed_in + ' reported items returned to their owner') + '">' + esc(r.returns) + '</td>'
+      + '<td class="num">' + esc(r.active_claims) + '</td>'
+      + '<td class="num">' + esc(r.orders) + '</td>'
+      + '<td>' + (r.has_pin ? '<span class="badge">Set</span>' : '<span class="muted">Not set</span>') + '</td>'
+      + '<td class="mono muted">' + esc(joined) + '</td>'
+      + '<td class="col-actions">' + actions + '</td></tr>';
+  }).join('');
+  host.innerHTML = '<table class="table"><thead><tr>'
+    + '<th class="col-check"><input type="checkbox" id="st_all"' + (allChecked ? ' checked' : '') + ' aria-label="Select all students on this page"></th>'
+    + sortTh('student_id', 'Student ID') + sortTh('name', 'Name') + sortTh('class', 'Class')
+    + sortTh('points', 'Points', true) + '<th class="num">Returns</th><th class="num">Active claims</th><th class="num">Orders</th>'
+    + '<th>PIN</th>' + sortTh('created_at', 'Joined') + '<th class="col-actions">Actions</th>'
+    + '</tr></thead><tbody>' + body + '</tbody></table>';
+  const all = $('#st_all');
+  if (all) all.addEventListener('change', () => {
+    ST.rows.forEach((r) => { if (all.checked) ST.selected.add(r.student_id); else ST.selected.delete(r.student_id); });
+    renderStudents();
+  });
+  renderPager();
+}
+
+function renderPager() {
+  const el = $('#st_pager');
+  const busy = ST.loading;
+  el.innerHTML = '<button class="small" data-st-page="prev"' + (busy || ST.page <= 1 ? ' disabled' : '') + '>Previous</button>'
+    + '<b>Page ' + esc(ST.page) + ' of ' + esc(ST.pages) + '</b>'
+    + '<button class="small" data-st-page="next"' + (busy || ST.page >= ST.pages ? ' disabled' : '') + '>Next</button>'
+    + '<span class="muted">' + esc(ST.total) + ' total</span>';
+  $$('#st_pager [data-st-page]').forEach((b) => b.addEventListener('click', () => {
+    if (b.disabled) return;
+    if (b.dataset.stPage === 'prev' && ST.page > 1) ST.page--;
+    if (b.dataset.stPage === 'next' && ST.page < ST.pages) ST.page++;
+    loadStudents();
+  }));
+}
+
+function updateBulkBar() {
+  const n = ST.selected.size;
+  $('#st_bulk').classList.toggle('hidden', n === 0);
+  $('#st_bulkCount').textContent = n + (n === 1 ? ' selected' : ' selected');
+  if (n === 0) $('#st_bulkClass').value = '';
+}
+
+// Row buttons are rendered all the time, so one delegated listener per event type.
+$('#st_table').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  if (btn.dataset.stSort) {
+    const key = btn.dataset.stSort;
+    if (ST.sort === key) ST.dir = ST.dir === 'asc' ? 'desc' : 'asc';
+    else { ST.sort = key; ST.dir = 'asc'; }
+    ST.page = 1;
+    loadStudents();
+    return;
+  }
+  if (btn.dataset.stEdit) { ST.editing = btn.dataset.stEdit; renderStudents(); return; }
+  if (btn.dataset.stCancel) { ST.editing = ''; renderStudents(); return; }
+  if (btn.dataset.stSave) {
+    const sid = btn.dataset.stSave;
+    const inpName = $('[data-edit-name="' + sid + '"]');
+    const inpClass = $('[data-edit-class="' + sid + '"]');
+    btn.disabled = true;
+    const r = await api('/admin/students/update', { method: 'POST', body: JSON.stringify({ student_id: sid, name: inpName.value, class: inpClass.value }) });
+    if (r.status === 200) { ST.editing = ''; toast('Saved'); }
+    else toast(errText(r, 'Could not save that change.'));
+    loadStudents();
+    return;
+  }
+  if (btn.dataset.stDel) {
+    btn.disabled = true;
+    const sid = btn.dataset.stDel;
+    const refs = await api('/admin/students/refs?student_id=' + encodeURIComponent(sid));
+    if (refs.status !== 200) { toast(errText(refs, 'Could not check this student.')); loadStudents(); return; }
+    if (refs.body.blocked) {
+      const name = refs.body.name ? esc(refs.body.name) + ' (' + esc(sid) + ')' : esc(sid);
+      await showModal({
+        title: 'Cannot delete this student',
+        body: '<p><b>' + name + '</b> is still attached to records, so deleting would leave them without an owner:</p>'
+          + '<ul class="modal-list">' + refList(refs.body.refs) + '</ul>'
+          + '<p class="muted">Clear those records first, then come back and delete the student.</p>',
+      });
+      loadStudents();
+      return;
+    }
+    const ok = await confirmModal('Delete ' + sid + '?',
+      '<p>This removes <b>' + esc(refs.body.name || sid) + '</b> and their PIN. It cannot be undone.</p>', 'Delete');
+    if (!ok) { loadStudents(); return; }
+    const del = await api('/admin/students/delete', { method: 'POST', body: JSON.stringify({ student_id: sid }) });
+    if (del.status === 200) toast('Student deleted');
+    else if (del.status === 409) {
+      await showModal({ title: 'Cannot delete this student', body: '<p>Records were added while the dialog was open:</p><ul class="modal-list">' + refList(del.body.refs) + '</ul>' });
+    } else toast(errText(del, 'Could not delete this student.'));
+    loadStudents();
+  }
+});
+$('#st_table').addEventListener('change', (e) => {
+  const cb = e.target.closest('[data-st-select]');
+  if (!cb) return;
+  if (cb.checked) ST.selected.add(cb.dataset.stSelect); else ST.selected.delete(cb.dataset.stSelect);
+  const all = $('#st_all');
+  if (all) all.checked = ST.rows.length > 0 && ST.rows.every((r) => ST.selected.has(r.student_id));
+  updateBulkBar();
+});
+
+let stTimer = 0;
+$('#st_q').addEventListener('input', () => {
+  clearTimeout(stTimer);
+  stTimer = setTimeout(() => { ST.q = $('#st_q').value.trim(); ST.page = 1; loadStudents(); }, 250);
+});
+$('#st_size').addEventListener('change', () => { ST.size = Number($('#st_size').value) === 50 ? 50 : 20; ST.page = 1; loadStudents(); });
+$('#st_refresh').addEventListener('click', loadStudents);
+
+$('#stNew').addEventListener('click', () => {
+  $('#importCard').classList.add('hidden');
+  $('#newStudentCard').classList.toggle('hidden');
+  if (!$('#newStudentCard').classList.contains('hidden')) $('#ns_id').focus();
+});
+$('#nsCancel').addEventListener('click', () => {
+  $('#newStudentCard').classList.add('hidden');
+  ['#ns_id', '#ns_name', '#ns_class', '#ns_pin'].forEach((x) => { $(x).value = ''; });
+  $('#nsMsg').textContent = '';
+});
+$('#nsCreate').addEventListener('click', async () => {
+  const payload = { student_id: $('#ns_id').value.trim(), name: $('#ns_name').value.trim(), class: $('#ns_class').value.trim() };
+  const pin = $('#ns_pin').value.trim();
+  if (pin) payload.pin = pin;
+  const msg = (t) => { $('#nsMsg').textContent = t; };
+  if (!/^\d{7}$/.test(payload.student_id)) return msg('Student ID must be 7 digits.');
+  if (!payload.name) return msg('Name is required.');
+  if (!payload.class) return msg('Class is required.');
+  if (pin && !/^\d{4}$/.test(pin)) return msg('PIN must be 4 digits.');
+  $('#nsCreate').disabled = true;
+  const r = await api('/admin/students', { method: 'POST', body: JSON.stringify(payload) });
+  $('#nsCreate').disabled = false;
+  if (r.status === 200) {
+    toast('Student added');
+    $('#nsCancel').click();
+    ST.q = ''; $('#st_q').value = ''; ST.page = 1;
+    loadStudents();
+  } else msg(errText(r, 'Could not add that student.'));
+});
+
+$('#st_bulkClear').addEventListener('click', () => { ST.selected.clear(); renderStudents(); updateBulkBar(); });
+$('#st_bulkClassGo').addEventListener('click', async () => {
+  const cls = $('#st_bulkClass').value.trim();
+  if (!cls) { toast('Type the new class first.'); return; }
+  const ids = selectedIds();
+  const ok = await confirmModal('Move ' + ids.length + (ids.length === 1 ? ' student' : ' students') + ' to ' + cls + '?',
+    '<p>This overwrites the class they are in now.</p>', 'Move');
+  if (!ok) return;
+  const r = await api('/admin/students/bulk', { method: 'POST', body: JSON.stringify({ student_ids: ids, action: 'set_class', class: cls }) });
+  if (r.status === 200) toast(r.body.updated + ' moved' + (r.body.missing ? ', ' + r.body.missing + ' not found' : ''));
+  else toast(errText(r, 'Could not change the class.'));
+  loadStudents();
+});
+$('#st_bulkPin').addEventListener('click', async () => {
+  const ids = selectedIds();
+  const ok = await confirmModal('Reset PIN for ' + ids.length + (ids.length === 1 ? ' student' : ' students') + '?',
+    '<p>They set a new PIN the next time they use the system.</p>', 'Reset PIN');
+  if (!ok) return;
+  const r = await api('/admin/students/reset-pin', { method: 'POST', body: JSON.stringify({ student_ids: ids }) });
+  if (r.status === 200) toast(r.body.reset + ' PIN' + (r.body.reset === 1 ? '' : 's') + ' reset' + (r.body.missing ? ', ' + r.body.missing + ' not found' : ''));
+  else toast(errText(r, 'Could not reset the PIN.'));
+  loadStudents();
+});
+$('#st_bulkDelete').addEventListener('click', async () => {
+  const ids = selectedIds();
+  const ok = await confirmModal('Delete ' + ids.length + (ids.length === 1 ? ' student' : ' students') + '?',
+    '<p>Students who still have records are skipped. You will see the result for each one when it finishes.</p>', 'Delete');
+  if (!ok) return;
+  const r = await api('/admin/students/delete', { method: 'POST', body: JSON.stringify({ student_ids: ids }) });
+  if (r.status !== 200) { toast(errText(r, 'Delete failed.')); return; }
+  const b = r.body;
+  const results = (b.results || []).map((x) => {
+    const label = { deleted: 'Deleted', blocked: 'Skipped', not_found: 'Not found' }[x.status] || x.status;
+    const why = x.status === 'blocked' ? ' (has ' + esc(x.summary) + ')' : '';
+    return '<li><span class="mono">' + esc(x.student_id) + '</span>: ' + label + why + '</li>';
+  }).join('');
+  await showModal({
+    title: 'Delete finished',
+    body: '<p><b>' + esc(b.deleted) + '</b> deleted, <b>' + esc(b.blocked) + '</b> skipped, <b>' + esc(b.not_found) + '</b> not found.</p><ul class="modal-list">' + results + '</ul>',
+  });
+  loadStudents();
+});
+
+/* CSV export */
+$('#stExport').addEventListener('click', async () => {
+  const res = await fetch('/api/admin/students/export', { headers: { 'X-Admin-Token': TOKEN } });
+  if (!res.ok) { toast('Export failed.'); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'lf-students-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Exported all students');
+});
+
+/* CSV import: preview, then confirm */
+$('#stImportToggle').addEventListener('click', () => {
+  $('#newStudentCard').classList.add('hidden');
+  $('#importCard').classList.toggle('hidden');
+  if (!$('#importCard').classList.contains('hidden')) $('#im_text').focus();
+});
+$('#im_file').addEventListener('change', async () => {
+  const f = $('#im_file').files[0];
+  if (!f) return;
+  if (f.size > 200 * 1024) { $('#im_msg').textContent = 'That file is larger than 200 KB. Split it first.'; return; }
+  try {
+    $('#im_text').value = await f.text();
+    $('#im_fileName').textContent = f.name + ' (' + Math.max(1, Math.round(f.size / 1024)) + ' KB)';
+    $('#im_msg').textContent = '';
+    $('#im_result').innerHTML = '';
+  } catch (e) { $('#im_msg').textContent = 'Could not read that file.'; }
+});
+$('#im_reset').addEventListener('click', () => {
+  $('#im_text').value = ''; $('#im_file').value = ''; $('#im_fileName').textContent = '';
+  $('#im_msg').textContent = ''; $('#im_result').innerHTML = '';
+});
+$('#im_preview').addEventListener('click', async () => {
+  const csv = $('#im_text').value;
+  if (!csv.trim()) { $('#im_msg').textContent = 'Paste a CSV or choose a file first.'; return; }
+  $('#im_msg').textContent = 'Checking rows…';
+  $('#im_preview').disabled = true;
+  const r = await api('/admin/students/import', { method: 'POST', body: JSON.stringify({ csv, confirm: false }) });
+  $('#im_preview').disabled = false;
+  if (r.status !== 200) { $('#im_msg').textContent = errText(r, 'Could not read that CSV.'); $('#im_result').innerHTML = ''; return; }
+  $('#im_msg').textContent = '';
+  const s = r.body.summary;
+  const rows = r.body.rows || [];
+  const shown = rows.slice(0, 200);
+  const table = '<div class="tablewrap im-table"><table class="table"><thead><tr><th class="num">Line</th><th>Student ID</th><th>Name</th><th>Class</th><th>Result</th></tr></thead><tbody>'
+    + shown.map((row) => {
+      const badge = row.action === 'error'
+        ? '<span class="badge pending">Fix</span> <span class="muted">' + esc(row.message) + '</span>'
+        : row.action === 'update' ? '<span class="badge given">Update</span>' : '<span class="badge">New</span>';
+      return '<tr><td class="num">' + esc(row.line) + '</td><td class="mono">' + esc(row.student_id) + '</td>'
+        + '<td>' + esc(row.name) + '</td><td>' + esc(row.class) + '</td><td>' + badge + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  const more = rows.length > shown.length ? '<p class="muted">Showing the first ' + shown.length + ' of ' + rows.length + ' rows.</p>' : '';
+  const summary = '<div class="im-summary"><b>' + esc(s.total) + '</b> row' + (s.total === 1 ? '' : 's') + ': '
+    + '<b>' + esc(s.create) + '</b> new, <b>' + esc(s.update) + '</b> update' + (s.update === 1 ? '' : 's')
+    + (s.invalid ? ', <b>' + esc(s.invalid) + '</b> need' + (s.invalid === 1 ? 's' : '') + ' fixing' : '') + '.</div>';
+  const actions = s.valid > 0
+    ? '<div class="row" style="margin-top:10px"><button class="primary small" id="imCommit">Import ' + esc(s.valid) + (s.valid === 1 ? ' student' : ' students') + '</button>'
+      + '<span class="muted">Nothing is saved until you press this.</span></div>'
+    : '<p class="muted">Nothing to import until the rows above are fixed.</p>';
+  $('#im_result').innerHTML = summary + table + more + actions;
+  const commit = $('#imCommit');
+  if (commit) commit.addEventListener('click', commitImport);
+});
+
+async function commitImport() {
+  const csv = $('#im_text').value;
+  const btn = $('#imCommit');
+  if (btn) btn.disabled = true;
+  $('#im_msg').textContent = 'Saving…';
+  const r = await api('/admin/students/import', { method: 'POST', body: JSON.stringify({ csv, confirm: true }) });
+  if (r.status !== 200) {
+    if (btn) btn.disabled = false;
+    $('#im_msg').textContent = errText(r, 'Import failed.');
+    return;
+  }
+  $('#im_msg').textContent = '';
+  const s = r.body.summary;
+  const results = r.body.results || [];
+  const shown = results.slice(0, 300);
+  const table = '<div class="tablewrap im-table"><table class="table"><thead><tr><th class="num">Line</th><th>Student ID</th><th>Result</th></tr></thead><tbody>'
+    + shown.map((row) => {
+      const label = row.status === 'created' ? '<span class="badge">New</span>'
+        : row.status === 'updated' ? '<span class="badge given">Updated</span>'
+        : '<span class="badge pending">Failed</span> <span class="muted">' + esc(row.message || row.error || '') + '</span>';
+      return '<tr><td class="num">' + esc(row.line) + '</td><td class="mono">' + esc(row.student_id) + '</td><td>' + label + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  const summary = '<div class="im-summary"><b>' + esc(s.applied) + '</b> applied (<b>' + esc(s.created) + '</b> new, <b>' + esc(s.updated) + '</b> updated)'
+    + (s.failed ? ', <b>' + esc(s.failed) + '</b> failed' : '') + '.</div>';
+  const more = results.length > shown.length ? '<p class="muted">Showing the first ' + shown.length + ' of ' + results.length + ' rows.</p>' : '';
+  $('#im_result').innerHTML = summary + table + more
+    + '<div class="row" style="margin-top:10px"><button class="small" id="imAgain">Import another file</button></div>';
+  $('#imAgain').addEventListener('click', () => {
+    $('#im_text').value = ''; $('#im_file').value = ''; $('#im_fileName').textContent = '';
+    $('#im_result').innerHTML = '';
+  });
+  toast(s.applied + ' student' + (s.applied === 1 ? '' : 's') + ' imported');
+  loadStudents();
+}
+
 /* ---------- Manage ---------- */
 async function loadManage() {
-  const [it, idn, au] = await Promise.all([api('/admin/items'), api('/admin/identities?q='), api('/admin/audit')]);
+  const [it, au] = await Promise.all([api('/admin/items'), api('/admin/audit')]);
   if (it.status === 200) { CSV.items = it.body.items; }
-  if (idn.status === 200) { CSV.identities = idn.body.identities; }
   if (au.status === 200) { CSV.audit = au.body.audit; }
-  renderItems(it.body.items || []);
-  renderIdentities(idn.body.identities || []);
-  if (au.status === 200) $('#auditAdmin').innerHTML = (au.body.audit || []).slice(0, 30).map((a) =>
-    '<div class="row" style="margin:4px 0"><span class="mono muted">#' + a.id + '</span><b>' + esc(a.action) + '</b><span class="muted">' + esc(a.target || '') + ' · ' + esc(String(a.created_at).slice(0, 16)) + '</span></div>').join('') || '<p class="muted">No audit entries.</p>';
+  renderItems(it.status === 200 ? it.body.items : []);
+  if (au.status === 200) {
+    const list = au.body.audit || [];
+    $('#auditAdmin').innerHTML = list.length ? list.slice(0, 30).map((a) =>
+      '<div class="row" style="margin:4px 0;align-items:baseline"><span class="mono muted">#' + esc(a.id) + '</span><b>' + esc(a.action) + '</b>'
+      + '<span class="mono muted">' + esc(a.target || '') + '</span>'
+      + (a.detail ? '<span class="muted">' + esc(String(a.detail)) + '</span>' : '')
+      + '<span class="spacer"></span><span class="mono muted">' + esc(String(a.created_at || '').slice(0, 16)) + '</span></div>').join('')
+      : '<p class="muted">No audit entries.</p>';
+  }
 }
 function renderItems(list) {
   $('#itemsAdmin').innerHTML = list.length ? '<table><tr><th>Item</th><th>Status</th><th>Finder</th><th></th></tr>' + list.map((i) =>
@@ -481,41 +1123,12 @@ function renderItems(list) {
     loadManage();
   }));
 }
-function renderIdentities(list) {
-  $('#identitiesAdmin').innerHTML = list.length ? list.map((x) =>
-    '<div class="row" style="align-items:center">'
-    + '<span class="mono">' + esc(x.student_id) + '</span>'
-    + '<input data-in-name="' + x.student_id + '" value="' + esc(x.name) + '" style="width:150px">'
-    + '<input data-in-class="' + x.student_id + '" value="' + esc(x.class) + '" style="width:80px">'
-    + '<span class="muted">items ' + x.items_n + ' · claims ' + x.claims_n + ' · ' + x.points + ' pts' + (x.has_pin ? ' · PIN set' : '') + '</span>'
-    + '<span class="spacer"></span>'
-    + '<button class="small" data-in-save="' + x.student_id + '">Save</button>'
-    + '<button class="small danger" data-in-reset="' + x.student_id + '">Reset PIN</button>'
-    + '</div>').join('') : '<p class="muted">No identities match.</p>';
-  $$('#identitiesAdmin [data-in-save]').forEach((b) => b.addEventListener('click', async () => {
-    const sid = b.dataset.inSave;
-    const rr = await api('/admin/identities', { method: 'POST', body: JSON.stringify({ student_id: sid,
-      name: $('[data-in-name="' + sid + '"]').value, class: $('[data-in-class="' + sid + '"]').value }) });
-    toast(rr.status === 200 ? 'Saved' : 'Failed');
-    loadManage();
-  }));
-  $$('#identitiesAdmin [data-in-reset]').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('Reset the PIN for ' + b.dataset.inReset + '? They will set a new one on first use.')) return;
-    const rr = await api('/admin/identities', { method: 'POST', body: JSON.stringify({ student_id: b.dataset.inReset, reset_pin: true }) });
-    toast(rr.status === 200 ? 'PIN reset' : 'Failed');
-    loadManage();
-  }));
-}
 $('#it_search').addEventListener('click', async () => {
   const r = await api('/admin/items?q=' + encodeURIComponent($('#it_q').value.trim()) + '&status=' + encodeURIComponent($('#it_status').value));
   if (r.status === 200) { CSV.items = r.body.items; renderItems(r.body.items); }
 });
-$('#id_search').addEventListener('click', async () => {
-  const r = await api('/admin/identities?q=' + encodeURIComponent($('#id_q').value.trim()));
-  if (r.status === 200) renderIdentities(r.body.identities);
-});
 
-/* ---------- CSV ---------- */
+/* ---------- CSV export for the older tabs ---------- */
 async function exportCsv(kind) {
   if (kind === 'handouts' && !CSV.handouts) await loadHandouts();
   if (kind === 'items' && !CSV.items) await loadManage();
@@ -523,10 +1136,10 @@ async function exportCsv(kind) {
   const rows = CSV[kind] || [];
   if (!rows.length) { toast('Nothing to export'); return; }
   const keys = Object.keys(rows[0]);
-  const csv = [keys.join(',')].concat(rows.map((r) => keys.map((k) => {
+  const lines = [keys.join(',')].concat(rows.map((r) => keys.map((k) => {
     const v = String(r[k] ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-  }).join(','))).join('\n');
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv' });
+  }).join(',')));
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'lf-' + kind + '-' + new Date().toISOString().slice(0, 10) + '.csv';
@@ -535,11 +1148,6 @@ async function exportCsv(kind) {
 }
 $$('[data-csv]').forEach((b) => b.addEventListener('click', () => exportCsv(b.dataset.csv)));
 
-function toast(msg) {
-  const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:99;background:rgba(32,41,49,.92);color:#fff;font:600 14px var(--font-ui);padding:10px 18px;border-radius:99px';
-  d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 3000);
-}
 if (TOKEN) boot();
 </script>
 </body></html>

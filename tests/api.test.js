@@ -53,7 +53,7 @@ test('report：学号格式非法 → 400', async () => {
 // ---- 任务 8：kiosk ----
 import { fulfill } from '../src/api/kiosk.js';
 const jr = (o) => new Request('https://x/', { method: 'POST', body: JSON.stringify(o), headers: { 'content-type': 'application/json' } });
-const mkReport = () => { const f = new FormData(); f.set('title','Blue umbrella'); f.set('description','Long handle, wrapped with white tape'); f.set('category','other'); f.set('location','Main building 1F'); f.set('student_id','9031622'); f.set('name','Alex Wang'); f.set('class','7(3)'); f.set('verify_q','What is on the handle?'); f.set('verify_a','white tape'); return new Request('https://x/api/report', { method: 'POST', body: f }); };
+const mkReport = (withPhoto = true) => { const f = new FormData(); f.set('title','Blue umbrella'); f.set('description','Long handle, wrapped with white tape'); f.set('category','other'); f.set('location','Main building 1F'); f.set('student_id','9031622'); f.set('name','Alex Wang'); f.set('class','7(3)'); f.set('verify_q','What is on the handle?'); f.set('verify_a','white tape'); if (withPhoto) f.set('photo', new File([new Uint8Array([0xFF,0xD8,0xFF,0xE0,1,2,3,4])], 'item.jpg', { type: 'image/jpeg' })); return new Request('https://x/api/report', { method: 'POST', body: f }); };
 test('fulfill 乐观锁：重复核销第二次 → 409；出库后积分入账（受月上限）', async () => {
   const db = fakeDb(SCHEMA); await seed(db);
   await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)')").run();
@@ -292,9 +292,9 @@ test('fulfill multipart：存证照片写入 PHOTOS 且 evidence_photo_path 落�
 
 // ---- v1.2.0：身份领取（学号 + 姓名，无需领取码）----
 import { lookupClaims } from '../src/api/kiosk.js';
-async function mkApprovedClaim(db, code = '472916') {
+async function mkApprovedClaim(db, code = '472916', withPhoto = true) {
   await db.prepare("INSERT INTO identities(student_id,name,class) VALUES ('9031623','Leo Li','7(3)') ON CONFLICT(student_id) DO NOTHING").run();
-  const reg = await (await report(db, env, await mkReport())).json();
+  const reg = await (await report(db, env, await mkReport(withPhoto))).json();
   const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
   await db.prepare("INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_code,pickup_expires_at) VALUES (?, ?, 'white tape', 'approved', ?, '2099-12-31T00:00:00Z')").bind(itemId, '9031623', code).run();
   const claimId = (await db.prepare("SELECT id FROM claims WHERE pickup_code=?").bind(code).first()).id;
@@ -331,8 +331,18 @@ test('身份领取：claim_id + 学号 + 姓名 → 出库 + 积分发放', asyn
   assert.equal((await db.prepare("SELECT status FROM items WHERE id=?").bind(itemId).first()).status, 'returned');
   assert.equal((await db.prepare("SELECT status FROM claims WHERE id=?").bind(claimId).first()).status, 'fulfilled');
 });
-test('身份领取：姓名错 → 403；重复领取 → 409（乐观锁）', async () => {
+test('身份领取：登记时选「暂无图片」→ 积分少 2 分（v2.0.0）', async () => {
   const db = fakeDb(SCHEMA); await seed(db);
+  const { claimId } = await mkApprovedClaim(db, '472917', false);
+  const photos = { put: async () => {}, get: async () => null };
+  const r = await idFulfill(db, photos, idForm(claimId, 'Leo Li'));
+  const body = await r.json();
+  assert.equal(r.status, 200);
+  assert.equal(body.points_granted, 8);      // normal 10 - 2
+  assert.equal(body.has_photo, false);
+  assert.equal(body.photo_penalty, 2);
+});
+test('身份领取：姓名错 → 403；重复领取 → 409（乐观锁）', async () => {  const db = fakeDb(SCHEMA); await seed(db);
   const { claimId } = await mkApprovedClaim(db);
   const photos = { put: async () => {}, get: async () => null };
   const bad = await idFulfill(db, photos, idForm(claimId, '张三'));

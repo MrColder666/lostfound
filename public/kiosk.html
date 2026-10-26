@@ -2,6 +2,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>L&F · Service Desk</title>
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="L&amp;F Desk">
+<meta name="theme-color" content="#005EBB">
 <link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/fonts.css"><link rel="stylesheet" href="/css/kiosk.css">
 </head><body>
 <div id="offlineBanner" class="k-offline" hidden data-i18n="k_offline">Network unavailable — please try again later</div>
@@ -34,6 +42,13 @@
         <li><span class="mono">3</span> <span data-i18n="k_step3">The owner collects it at the kiosk with their student ID; the finder earns points</span></li>
       </ol>
       <p class="k-thanks" data-i18n="k_thanks">Thank you for turning things in 🙏</p>
+      <div class="k-qr">
+        <div class="k-qr-img" id="kQr" aria-hidden="true"></div>
+        <div class="k-qr-txt">
+          <b data-i18n="k_qr_title">Open the board on your phone</b>
+          <small data-i18n="k_qr_sub">Scan — no app needed</small>
+        </div>
+      </div>
     </aside>
   </div>
 </section>
@@ -46,20 +61,29 @@
       <div class="k-rep-pane" data-pane="1">
         <div class="k-cam-wrap k-tall"><video id="repCam" autoplay playsinline muted></video><div class="k-cam-hint" id="repCamHint" data-i18n="k_cam_hint_ok">Tap “Take photo” to capture the item</div></div>
         <div class="k-row">
-          <button class="k-btn k-primary" id="repShot" data-i18n="k_shot" type="button">📷 Take photo</button>
+          <button class="k-btn k-primary" id="repShot" data-i18n="k_shot" type="button">Take photo</button>
           <button class="k-btn" id="repRetake" hidden data-i18n="k_retake" type="button">Retake</button>
+          <button class="k-btn" id="repNoPhoto" data-i18n="k_no_photo_btn" type="button" aria-pressed="false">No photo</button>
         </div>
-        <button class="k-btn k-primary k-wide" id="repTo2" disabled data-i18n="k_next" type="button">Next →</button>
+        <p class="k-hint" id="repPhotoNote" data-i18n="k_no_photo_note">Without a photo the return is worth 2 points less.</p>
+        <div class="k-photo-warn" id="repPhotoWarn" hidden>
+          <span data-i18n="k_photo_warn">No photo selected. The return is worth 2 points less.</span>
+          <button class="k-btn k-primary" id="repNoPhotoGo" data-i18n="k_photo_warn_ok" type="button">Continue without photo</button>
+        </div>
+        <button class="k-btn k-primary k-wide" id="repTo2" data-i18n="k_next" type="button">Next →</button>
       </div>
       <div class="k-rep-pane" data-pane="2" hidden>
+        <div class="k-label" data-i18n="k_item_name">Item name</div>
+        <input class="k-input" id="repItemName" maxlength="40" data-i18n-ph="k_item_name_ph" placeholder="e.g. Black hoodie">
         <div class="k-label" data-i18n="k_what">What is it?</div>
         <div class="k-chiprow" id="repCat"></div>
-        <div class="k-label" data-i18n="k_color_label">Main colour (builds the title automatically)</div>
+        <div class="k-label" data-i18n="k_color_label">Main colour (used when no name is typed)</div>
         <div class="k-chiprow" id="repColor"></div>
         <div class="k-label" data-i18n="k_where">Where did you find it?</div>
         <div class="k-chiprow" id="repLoc"></div>
-        <div class="k-label" data-i18n="k_verify_label">A detail only the owner would know (checked when claimed — never shown publicly)</div>
-        <input class="k-input" id="repVerify" data-i18n-ph="k_verify_ph" placeholder="e.g. a name written inside / there is still a pen in it">
+        <input class="k-input" id="repLocOther" maxlength="40" hidden data-i18n-ph="k_loc_other_ph" placeholder="Room / floor / place">
+        <div class="k-label" data-i18n="k_verify_label">A detail only the owner would know (optional, never shown publicly)</div>
+        <input class="k-input" id="repVerify" data-i18n-ph="k_verify_ph" placeholder="e.g. a name written inside, or a pen still in the case">
         <div class="k-row">
           <button class="k-btn" data-gopane="1" data-i18n="k_prev" type="button">← Back</button>
           <button class="k-btn k-primary" id="repTo3" disabled data-i18n="k_next" type="button">Next →</button>
@@ -70,7 +94,7 @@
         <input class="k-input mono k-biginput" id="repSid" inputmode="numeric" maxlength="7" data-i18n-ph="k_sid_ph" placeholder="7 digits">
         <div class="k-row">
           <span class="k-field"><span class="k-label" data-i18n="k_name">Name</span><input class="k-input" id="repName" data-i18n-ph="k_name_ph" placeholder="Name"></span>
-          <span class="k-field"><span class="k-label" data-i18n="k_class">Class</span><input class="k-input" id="repClass" data-i18n-ph="k_class_ph" placeholder="e.g. 7(3)"></span>
+          <span class="k-field"><span class="k-label" data-i18n="k_class">Class</span><input class="k-input" id="repClass" data-i18n-ph="k_class_ph" placeholder="e.g. 7B"></span>
         </div>
         <p class="k-hint" data-i18n="k_points_hint">Points go to this student ID · credited only after a successful pickup</p>
         <div class="k-row">
@@ -144,5 +168,6 @@
   </div>
 </section>
 
+<script src="/js/vendor/qrcode.js"></script>
 <script type="module" src="/js/kiosk.js"></script>
 </body></html>

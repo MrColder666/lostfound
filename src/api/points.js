@@ -49,28 +49,34 @@ export async function tip(db, env, req) {
   }
   return json({ ok: true, granted: delta, capped });
 }
-export async function redeem(db, env, req) {
-  const { student_id, reward_id, name, pin } = await req.json();
+// 兑换核心：手机端与 Kiosk 共用（身份 + PIN → 余额/库存双门 → 单一乐观锁扣库存 → 落单扣分）
+export async function redeemCore(db, body) {
+  const { student_id, reward_id, name, pin } = body || {};
   const sid = String(student_id ?? '');
-  if (!/^\d{7}$/.test(sid)) return json({ ok: false, error: 'BAD_STUDENT_ID' }, 400);
+  if (!/^\d{7}$/.test(sid)) return { ok: false, error: 'BAD_STUDENT_ID', status: 400 };
   // 身份门：必须已登记 + 姓名匹配 + PIN（v1.6.0：兑换零鉴权漏洞修复）
   const idn = await db.prepare('SELECT name FROM identities WHERE student_id=?').bind(sid).first();
-  if (!idn) return json({ ok: false, error: 'IDENTITY_NOT_FOUND' }, 404);
-  if (normalize(name ?? '') !== normalize(idn.name)) return json({ ok: false, error: 'NAME_MISMATCH' }, 403);
+  if (!idn) return { ok: false, error: 'IDENTITY_NOT_FOUND', status: 404 };
+  if (normalize(name ?? '') !== normalize(idn.name)) return { ok: false, error: 'NAME_MISMATCH', status: 403 };
   const gate = await pinGate(db, sid, pin);
-  if (!gate.ok) return json({ ok: false, error: gate.error }, gate.status);
+  if (!gate.ok) return { ok: false, error: gate.error, status: gate.status };
   const rw = await db.prepare('SELECT * FROM rewards WHERE id=? AND active=1').bind(reward_id).first();
-  if (!rw) return json({ ok: false, error: 'REWARD_NOT_FOUND' }, 404);
+  if (!rw) return { ok: false, error: 'REWARD_NOT_FOUND', status: 404 };
   const balance = (await db.prepare('SELECT COALESCE(SUM(delta),0) t FROM points_ledger WHERE student_id=?').bind(sid).first()).t;
   const chk = redeemCheck({ balance, cost: rw.cost, stock: rw.stock });
-  if (!chk.ok) return json({ ok: false, error: chk.error }, chk.error === 'INSUFFICIENT_POINTS' ? 402 : 409);
+  if (!chk.ok) return { ok: false, error: chk.error, status: chk.error === 'INSUFFICIENT_POINTS' ? 402 : 409 };
   // 库存门：单语句乐观锁，抢占成功才落单（v1.6.1：修复超卖）
   const upd = await db.prepare('UPDATE rewards SET stock=stock-1 WHERE id=? AND stock>0 AND active=1').bind(rw.id).run();
-  if (upd.meta.changes !== 1) return json({ ok: false, error: 'OUT_OF_STOCK' }, 409);
+  if (upd.meta.changes !== 1) return { ok: false, error: 'OUT_OF_STOCK', status: 409 };
   const rs = await db.batch([
     db.prepare('INSERT INTO redemptions(student_id,reward_id,points_cost) VALUES (?,?,?)').bind(sid, rw.id, rw.cost),
     db.prepare("INSERT INTO points_ledger(student_id,delta,reason,ref_type,ref_id,month_key) VALUES (?,?,'redeem','redemption',?,?)")
       .bind(sid, -rw.cost, rw.id, monthKey(new Date().toISOString())),
   ]);
-  return json({ ok: true, redemption_id: rs[0].meta.last_row_id, note: 'Order created — staff will hand over the item' });
+  return { ok: true, redemption_id: rs[0].meta.last_row_id, reward: { name: rw.name, cost: rw.cost }, balance_after: (Number(balance) || 0) - rw.cost };
+}
+export async function redeem(db, env, req) {
+  const r = await redeemCore(db, await req.json().catch(() => ({})));
+  if (!r.ok) return json({ ok: false, error: r.error }, r.status);
+  return json({ ok: true, redemption_id: r.redemption_id, note: 'Order created — staff will hand over the item' });
 }

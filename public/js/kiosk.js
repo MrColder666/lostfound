@@ -6,6 +6,15 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const api = (p, opt) => fetch('/api' + p, opt).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
 const JSONH = { 'content-type': 'application/json' };
 const NL = String.fromCharCode(10);
+const CAT_GLYPH = { electronics: '🎧', card: '🪪', clothing: '🧥', book: '📘', other: '📦' };
+const photoSrc = (p) => !p ? '' : (p.startsWith('/') || p.startsWith('http') ? p : '/api/photos/' + p);
+const thumbBlock = (it) => {
+  const src = photoSrc(it.photo_path);
+  return '<span class="k-thumb">'
+    + (src ? '<img src="' + esc(src) + '" alt="" loading="lazy" decoding="async">'
+      : '<span class="k-thumb-glyph" aria-hidden="true">' + (CAT_GLYPH[it.category] || CAT_GLYPH.other) + '</span>')
+    + '</span>';
+};
 
 /* ---------- i18n ---------- */
 function applyStaticTexts() {
@@ -80,7 +89,13 @@ function setSlot(n, code) {
 const CAT_KEYS = ['electronics', 'card', 'clothing', 'book', 'other'];
 const COLOR_KEYS = ['k_col_black', 'k_col_white', 'k_col_blue', 'k_col_red', 'k_col_green', 'k_col_yellow', 'k_col_pink', 'k_col_multi'];
 const LOC_KEYS = ['k_loc_library', 'k_loc_cafeteria', 'k_loc_gym', 'k_loc_field', 'k_loc_hallway', 'k_loc_classroom', 'k_loc_restroom', 'k_loc_gate'];
-let repPhoto = null, repCat = '', repCatLabel = '', repColorKey = '', repColor = '', repLocKey = '', repLoc = '', repPane = 1;
+let repPhoto = null, repNoPhoto = false, repCat = '', repCatLabel = '', repColorKey = '', repColor = '',
+    repLocKey = '', repLoc = '', repLocOther = '', repItemName = '', repPane = 1;
+
+// 地点文本：选 Other 时用输入框内容
+function repLocationText() {
+  return repLocKey === 'other' ? repLocOther.trim() : repLoc;
+}
 function chipRow(sel, items, onPick) {
   const wrap = $(sel); wrap.innerHTML = '';
   for (const [val, label] of items) {
@@ -103,42 +118,76 @@ function restoreChips() {
     const b = $(sel).querySelector('[data-val="' + val + '"]');
     if (b) b.setAttribute('aria-pressed', 'true');
   }
+  if (repLocKey === 'other') $('#repLocOther').hidden = false;
 }
 function buildReportChips() {
   chipRow('#repCat', CAT_KEYS.map((k) => [k, t('cat_' + k)]), (v, l) => { repCat = v; repCatLabel = l; repSummaryPaint(); checkRep2(); });
-  chipRow('#repColor', COLOR_KEYS.map((k) => [k, t(k)]), (v, l) => { repColorKey = v; repColor = l; repSummaryPaint(); checkRep2(); });
-  chipRow('#repLoc', LOC_KEYS.map((k) => [k, t(k)]), (v, l) => { repLocKey = v; repLoc = l; repSummaryPaint(); checkRep2(); });
+  chipRow('#repColor', COLOR_KEYS.map((k) => [k, t(k)]), (v, l) => { repColorKey = v; repColor = l; repSummaryPaint(); });
+  chipRow('#repLoc', [...LOC_KEYS.map((k) => [k, t(k)]), ['other', t('k_loc_other')]], (v, l) => {
+    repLocKey = v; repLoc = l;
+    const isOther = v === 'other';
+    $('#repLocOther').hidden = !isOther;
+    if (isOther) { repLocOther = $('#repLocOther').value; $('#repLocOther').focus(); }
+    repSummaryPaint(); checkRep2();
+  });
   restoreChips();
 }
 function composeTitle() {
-  return repColor + ' ' + repCatLabel;
+  const typed = repItemName.trim();
+  if (typed) return typed;
+  const parts = [repColor, repCatLabel].filter(Boolean);
+  return parts.join(' ') || repCatLabel || 'Found item';
 }
 function repSummaryPaint() {
+  const loc = repLocationText();
+  const title = composeTitle();
   $('#repSummary').textContent = [
-    repPhoto ? t('k_sum_photo_yes') : t('k_sum_photo_no'),
-    (repCatLabel || repColor) ? t('k_sum_cat') + composeTitle() : t('k_sum_cat') + t('k_sum_none'),
-    repLoc ? t('k_sum_loc') + repLoc : t('k_sum_loc') + t('k_sum_none'),
+    repPhoto ? t('k_sum_photo_yes') : (repNoPhoto ? t('k_no_photo_selected') : t('k_sum_photo_no')),
+    title ? t('k_sum_item') + title : t('k_sum_item') + t('k_sum_none'),
+    loc ? t('k_sum_loc') + loc : t('k_sum_loc') + t('k_sum_none'),
     $('#repVerify').value ? t('k_sum_verify_yes') : t('k_sum_verify_no'),
     $('#repSid').value ? t('k_sum_sid') + $('#repSid').value : t('k_sum_sid') + t('k_sum_none'),
   ].join(NL);
 }
 function resetReportState() {
-  repPhoto = null; repCat = ''; repCatLabel = ''; repColorKey = ''; repColor = ''; repLocKey = ''; repLoc = '';
+  repPhoto = null; repNoPhoto = false; repCat = ''; repCatLabel = ''; repColorKey = ''; repColor = '';
+  repLocKey = ''; repLoc = ''; repLocOther = ''; repItemName = '';
   const set = (id, v) => { const el = $(id); if (el) el.value = v; };
   set('#repVerify', ''); set('#repSid', ''); set('#repName', ''); set('#repClass', '');
+  set('#repItemName', ''); set('#repLocOther', '');
+  $('#repLocOther').hidden = true;
+  $('#repPhotoWarn').hidden = true;
   $('#repShot').textContent = t('k_shot'); $('#repRetake').hidden = true;
-  $('#repTo2').disabled = true; $('#repTo3').disabled = true; $('#repSubmit').disabled = true;
+  $('#repNoPhoto').setAttribute('aria-pressed', 'false');
+  $('#repTo3').disabled = true; $('#repSubmit').disabled = true;
   repSummaryPaint();
 }
 function repPaneGo(n) {
   repPane = n;
   $$('.k-rep-pane').forEach((p) => { p.hidden = p.dataset.pane !== String(n); });
   $('#repStep').textContent = n + '/3';
+  if (n !== 1) $('#repPhotoWarn').hidden = true;
   repSummaryPaint();
 }
-$('#repTo2').addEventListener('click', () => repPaneGo(2));
+// 第 1 步的 Next 不再置灰：没选照片时先提示「无照片少 2 分」，再点一次继续
+$('#repTo2').addEventListener('click', () => {
+  if (repPhoto || repNoPhoto) { repPaneGo(2); return; }
+  $('#repPhotoWarn').hidden = false;
+  toast(t('k_photo_warn'));
+});
+$('#repNoPhotoGo').addEventListener('click', () => {
+  repNoPhoto = true; repPhoto = null;
+  $('#repNoPhoto').setAttribute('aria-pressed', 'true');
+  $('#repPhotoWarn').hidden = true;
+  repSummaryPaint();
+  repPaneGo(2);
+});
 $$('[data-gopane]').forEach((b) => b.addEventListener('click', () => repPaneGo(Number(b.dataset.gopane))));
+// v2.1.1 修复：第 2 步的 Next 之前从未绑定点击事件（继承自 v1.7.x 的死按钮）
+$('#repTo3').addEventListener('click', () => repPaneGo(3));
 $('#repVerify').addEventListener('input', () => { repSummaryPaint(); checkRep2(); });
+$('#repItemName').addEventListener('input', () => { repItemName = $('#repItemName').value; repSummaryPaint(); checkRep2(); });
+$('#repLocOther').addEventListener('input', () => { repLocOther = $('#repLocOther').value; repSummaryPaint(); checkRep2(); });
 $('#repSid').addEventListener('input', () => { repSummaryPaint(); $('#repSubmit').disabled = !(/^[0-9]{7}$/.test($('#repSid').value) && $('#repName').value.trim() && $('#repClass').value.trim()); });
 $('#repName').addEventListener('input', () => $('#repSid').dispatchEvent(new Event('input')));
 $('#repClass').addEventListener('input', () => $('#repSid').dispatchEvent(new Event('input')));
@@ -149,26 +198,43 @@ $('#btnReport').addEventListener('click', async () => {
   $('#repCamHint').textContent = ok ? t('k_cam_hint_ok') : t('k_cam_hint_bad');
   $('#repCamHint').hidden = ok;
 });
-function checkRep2() { $('#repTo3').disabled = !(repCat && repColor && repLoc); }   // 核验细节改为可选（全凭自觉，不做强制门槛）
+// 第 2 步只要求「物品类型 + 地点」，物品名/颜色可留空（自动拼标题）
+function checkRep2() { $('#repTo3').disabled = !(repCat && repLocationText()); }
 $('#repShot').addEventListener('click', async () => {
   if (camTarget !== '#repCam') { toast(t('k_toast_cam_not_ready')); return; }
   const blob = await grabBlob('#repCam');
   if (!blob) { toast(t('k_toast_capture_fail')); return; }
   repPhoto = new File([blob], 'item.jpg', { type: 'image/jpeg' });
+  repNoPhoto = false; $('#repNoPhoto').setAttribute('aria-pressed', 'false');
+  $('#repPhotoWarn').hidden = true;
   $('#repShot').textContent = t('k_shot_again');
   $('#repRetake').hidden = false;
-  $('#repTo2').disabled = false;
+  repSummaryPaint();
   toast(t('k_toast_photo_saved'));
 });
-$('#repRetake').addEventListener('click', () => { repPhoto = null; $('#repTo2').disabled = true; $('#repShot').textContent = t('k_shot'); });
+$('#repRetake').addEventListener('click', () => {
+  repPhoto = null; repNoPhoto = false;
+  $('#repNoPhoto').setAttribute('aria-pressed', 'false');
+  $('#repShot').textContent = t('k_shot'); repSummaryPaint();
+});
+// 允许「暂无图片」：归还结算时该件少 2 分（照片是核验与找回效率的一部分）
+$('#repNoPhoto').addEventListener('click', () => {
+  repNoPhoto = true; repPhoto = null;
+  $('#repNoPhoto').setAttribute('aria-pressed', 'true');
+  $('#repPhotoWarn').hidden = true;
+  $('#repRetake').hidden = true;
+  $('#repShot').textContent = t('k_shot');
+  repSummaryPaint();
+});
 $('#repSubmit').addEventListener('click', async () => {
   $('#repSubmit').disabled = true;
   try {
+    const loc = repLocationText();
     const fd = new FormData();
     fd.set('title', composeTitle());
-    fd.set('description', t('k_kiosk_desc') + ' · ' + repLoc);
+    fd.set('description', t('k_kiosk_desc') + ' · ' + loc + (repItemName.trim() ? ' · ' + [repColor, repCatLabel].filter(Boolean).join(' ') : ''));
     fd.set('category', repCat);
-    fd.set('location', repLoc);
+    fd.set('location', loc);
     fd.set('student_id', $('#repSid').value.trim());
     fd.set('name', $('#repName').value.trim());
     fd.set('class', $('#repClass').value.trim());
@@ -178,7 +244,7 @@ $('#repSubmit').addEventListener('click', async () => {
     if (repPhoto) fd.set('photo', repPhoto);
     const reg = await (await api('/report', { method: 'POST', body: fd })).body;
     if (!reg.ok) { toast(reg.error === 'BAD_STUDENT_ID' ? t('k_toast_bad_sid') : reg.error === 'SLOTS_FULL' ? t('k_toast_full_admin') : t('k_toast_reg_fail')); $('#repSubmit').disabled = false; return; }
-    setSlot(reg.slot_no, 'NO. ' + reg.code);   // 登记即入库：格位在 /api/report 内一步分配
+    setSlot(reg.slot_no, 'NO. ' + reg.code);
     go('confirm');
   } finally { $('#repSubmit').disabled = false; }
 });
@@ -198,6 +264,7 @@ async function loadFind() {
   list.innerHTML = findItems.length
     ? findItems.map((it) =>
       '<button class="k-find-card" data-id="' + it.id + '">'
+      + thumbBlock(it)
       + '<b>' + esc(it.title) + '</b>'
       + '<span class="meta">' + esc(it.location) + ' · ' + esc(String(it.found_at).slice(5, 10)) + '</span>'
       + '<span class="slot-tag mono">' + t('k_slot') + ' ' + String(it.slot_no ?? 0).padStart(2, '0') + '</span>'
@@ -322,7 +389,20 @@ async function doFulfill() {
   $('#pickCancel').onclick = () => { $('#evidenceWrap').hidden = true; };
 }
 
+/* ---------- 空闲屏右下角：扫码打开手机版（/r 短链）---------- */
+function paintQr() {
+  const box = $('#kQr');
+  if (!box || typeof qrcode !== 'function') return;
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(location.origin + '/r');
+    qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  } catch { /* 生成失败就留空，不影响主流程 */ }
+}
+
 /* ---------- 启动 ---------- */
 $('#btnPickup').addEventListener('click', openPickup);
 applyStaticTexts();
 netPaint();
+paintQr();

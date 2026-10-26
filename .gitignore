@@ -5,3 +5,6 @@ node_modules/
 .wrangler/
 .dev.vars
 .dev.vars.*
+public/icons/_preview.png
+public/img/items/_work/
+public/img/items/_work2/

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="t">
+  <title id="t">L&amp;F · Lost &amp; Found</title>
+  <desc>Locker slot tag mark: deep-blue rounded square, white slot-tag outline with clipped corner, white monospaced digits 07.</desc>
+  <rect x="92" y="92" width="840" height="840" rx="170" ry="170" fill="#00458A"/>
+  <path d="M250,297 H774 A52,52 0 0 1 826,349 V637 L736,727 H250 A52,52 0 0 1 198,675 V349 A52,52 0 0 1 250,297 Z" fill="none" stroke="#FBFDFF" stroke-width="64" stroke-linejoin="round"/>
+  <g transform="translate(276,649.6) scale(0.4,-0.4)" fill="#FBFDFF">
+    <path transform="translate(0,0)" d="M300 -12Q160 -12 93.5 83.0Q27 178 27 349Q27 520 93.5 615.0Q160 710 300 710Q440 710 506.5 615.0Q573 520 573 349Q573 178 506.5 83.0Q440 -12 300 -12ZM300 106Q367 106 393.5 153.0Q420 200 420 284V414Q420 498 393.5 545.0Q367 592 300 592Q233 592 206.5 545.0Q180 498 180 414V284Q180 200 206.5 153.0Q233 106 300 106ZM300 290Q265 290 251.5 304.0Q238 318 238 338V360Q238 380 251.5 394.0Q265 408 300 408Q335 408 348.5 394.0Q362 380 362 360V338Q362 318 348.5 304.0Q335 290 300 290Z"/>
+    <path transform="translate(600,0)" d="M164 0 404 576H178V449H51V698H553V568L322 0Z"/>
+  </g>
+</svg>

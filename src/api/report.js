@@ -1,6 +1,7 @@
 // src/api/report.js —— 登记即入库（全凭自觉：无凭证码，直接分配格位）
 // v1.6.0：身份首写为准 + 姓名匹配；物品码 crypto 随机；507 清理悬空行
 import { checkImage } from '../lib/image.js';
+import { putPhoto } from '../lib/photo.js';
 import { upsertIdentitySafe } from '../lib/identity.js';
 import { getSettings } from '../lib/settings.js';
 const HIGH = new Set(['electronics', 'card']);
@@ -27,7 +28,7 @@ export async function report(db, env, req) {
     const chk = checkImage(bytes);
     if (!chk.ok) return Response.json({ ok: false, error: chk.error }, { status: 400 });
     photoPath = `photos/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${chk.kind === 'png' ? 'png' : 'jpg'}`;
-    await env.PHOTOS?.put(photoPath, bytes, { httpMetadata: { contentType: chk.kind === 'png' ? 'image/png' : 'image/jpeg' } });
+    await putPhoto(db, env, photoPath, bytes, chk.kind === 'png' ? 'image/png' : 'image/jpeg');
   }
   // 身份：首写为准；已存在须姓名匹配（防劫持）
   const idn = await upsertIdentitySafe(db, { student_id: sid, name, class: cls });

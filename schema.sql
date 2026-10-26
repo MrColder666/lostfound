@@ -104,3 +104,22 @@ CREATE TABLE IF NOT EXISTS webauthn_creds (       -- Passkey 凭据（指纹/面
 CREATE TABLE IF NOT EXISTS webauthn_challenges (  -- 一次性挑战
   key TEXT PRIMARY KEY, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0
 );
+
+-- —— v2.0.0 学生库 / 后台索引（幂等；与 migrations/2026-10-24-v2.0.0.sql 保持一致）——
+CREATE INDEX IF NOT EXISTS idx_identities_name      ON identities(name);
+CREATE INDEX IF NOT EXISTS idx_identities_class     ON identities(class);
+CREATE INDEX IF NOT EXISTS idx_identities_created   ON identities(created_at);
+CREATE INDEX IF NOT EXISTS idx_items_finder         ON items(registered_by, status);   -- 学生「贡献 / 报失」统计 + 删除引用检查
+CREATE INDEX IF NOT EXISTS idx_claims_claimant      ON claims(claimant_id, status);    -- 学生认领统计
+CREATE INDEX IF NOT EXISTS idx_redemptions_student  ON redemptions(student_id, status);-- 学生兑换单数 + 删除引用检查
+CREATE INDEX IF NOT EXISTS idx_redemptions_reward   ON redemptions(reward_id);         -- 奖品「有订单引用则禁删」检查
+CREATE UNIQUE INDEX IF NOT EXISTS idx_refund_once   ON points_ledger(ref_type, ref_id) WHERE reason='redeem_refund';  -- 一单只能退一次分
+
+-- —— v2.2.0 照片兜底存储（R2 未启用时把照片字节存进 D1；与 migrations/2026-10-26-v2.2.0-photos.sql 保持一致）
+CREATE TABLE IF NOT EXISTS photos (
+  path TEXT PRIMARY KEY,          -- 与 items.photo_path / claims.evidence_photo_path 相同
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  bytes BLOB NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

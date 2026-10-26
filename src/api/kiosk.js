@@ -1,11 +1,12 @@
 // src/api/kiosk.js —— 所有状态跃迁：UPDATE…WHERE 旧状态 + changes==1（§10 乐观锁）
 // v1.6.0：领取代码通道已下线 —— 现场凭「学号 + 姓名 + PIN」；verifyPickup 已删除
 import { isExpired } from '../lib/codes.js';
-import { grantWithCap, monthKey } from '../lib/points.js';
+import { grantWithCap, monthKey, finalReward, PHOTO_PENALTY } from '../lib/points.js';
 import { checkImage } from '../lib/image.js';
 import { normalize } from '../lib/verify.js';
 import { pinGate } from '../lib/identity.js';
 import { getSettings } from '../lib/settings.js';
+import { putPhoto } from '../lib/photo.js';
 const json = (o, s = 200) => Response.json(o, { status: s });
 // 身份查询：学号 + 姓名 + PIN → 返回该生待领取的认领（不含任何码）
 export async function lookupClaims(db, env, req) {
@@ -27,7 +28,7 @@ export async function lookupClaims(db, env, req) {
   });
   return json({ ok: true, claims });
 }
-// 出库共享尾段：两条乐观锁 UPDATE + 积分结算
+// 出库共享尾段：两条乐观锁 UPDATE + 积分结算（无照片登记 → 扣 PHOTO_PENALTY）
 async function completeHandout(db, env, claim, evidencePath) {
   const now = new Date();
   const rs = await db.batch([
@@ -40,11 +41,15 @@ async function completeHandout(db, env, claim, evidencePath) {
   const mk = monthKey(now.toISOString());
   const st = await getSettings(db);
   const agg = await db.prepare("SELECT COALESCE(SUM(delta),0) AS t FROM points_ledger WHERE student_id=? AND month_key=?").bind(claim.registered_by, mk).first();
-  const { delta, capped } = grantWithCap({ monthTotal: agg.t, want: claim.value_tier === 'high' ? Number(st.reward_high || 25) : Number(st.reward_normal || 10), cap: Number(st.month_cap || 100) });
+  // v2.0.0：登记时选了「暂无图片」→ 结算扣 2 分
+  const hasPhoto = !!claim.photo_path;
+  const want = finalReward({ tier: claim.value_tier, hasPhoto,
+    rewardNormal: st.reward_normal || 10, rewardHigh: st.reward_high || 25 });
+  const { delta, capped } = grantWithCap({ monthTotal: agg.t, want, cap: Number(st.month_cap || 100) });
   if (delta > 0)
     await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,ref_type,ref_id,month_key) VALUES (?,?,'claim_reward','claim',?,?)")
       .bind(claim.registered_by, delta, claim.id, mk).run();
-  return json({ ok: true, points_granted: delta, capped });
+  return json({ ok: true, points_granted: delta, capped, has_photo: hasPhoto, photo_penalty: hasPhoto ? 0 : PHOTO_PENALTY });
 }
 // 出库：multipart（claim_id + student_id + name + pin + 存证照片）或 JSON 同字段
 export async function fulfill(db, env, req) {
@@ -62,7 +67,7 @@ export async function fulfill(db, env, req) {
       const chk = checkImage(bytes);
       if (!chk.ok) return json({ ok: false, error: chk.error }, 400);
       evidencePath = `evidence/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${chk.kind === 'png' ? 'png' : 'jpg'}`;
-      await env.PHOTOS?.put(evidencePath, bytes, { httpMetadata: { contentType: chk.kind === 'png' ? 'image/png' : 'image/jpeg' } });
+      await putPhoto(db, env, evidencePath, bytes, chk.kind === 'png' ? 'image/png' : 'image/jpeg');
     }
   } else {
     const jb = await req.json();
@@ -78,7 +83,7 @@ export async function fulfill(db, env, req) {
   const gate = await pinGate(db, sid, pin);
   if (!gate.ok) return json({ ok: false, error: gate.error }, gate.status);
   const claim = await db.prepare(
-    `SELECT c.*, i.id AS item_id, i.value_tier, i.registered_by, i.created_at AS in_stock_at
+    `SELECT c.*, i.id AS item_id, i.value_tier, i.registered_by, i.photo_path, i.created_at AS in_stock_at
      FROM claims c JOIN items i ON i.id=c.item_id
      WHERE c.id=? AND c.claimant_id=?`).bind(claim_id, sid).first();
   if (!claim) return json({ ok: false, error: 'CLAIM_NOT_FOUND' }, 404);

@@ -16,3 +16,10 @@ export function redeemCheck({ balance, cost, stock }) {
   if (stock <= 0) return { ok: false, error: 'OUT_OF_STOCK' };
   return { ok: true };
 }
+// v2.0.0：登记时选了「暂无图片」的物品，归还结算时扣 2 分（照片是核验与找回效率的一部分）
+export const PHOTO_PENALTY = 2;
+export function finalReward({ tier, rewardNormal = 10, rewardHigh = 25, hasPhoto = true }) {
+  const base = tier === 'high' ? Number(rewardHigh) : Number(rewardNormal);
+  const want = hasPhoto ? base : base - PHOTO_PENALTY;
+  return Math.max(0, want);
+}

@@ -1,7 +1,14 @@
-{
+﻿{
   "name": "lostfound",
-  "version": "1.2.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test --experimental-test-isolation=none tests/*.test.js" }
+  "scripts": {
+    "test": "node --test --experimental-test-isolation=none tests/*.test.js",
+    "dev": "wrangler dev --port 8787 --local",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.152.0"
+  }
 }

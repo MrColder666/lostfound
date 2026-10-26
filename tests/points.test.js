@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { monthKey, grantWithCap, tipCheck, redeemCheck } from '../src/lib/points.js';
+import { monthKey, grantWithCap, tipCheck, redeemCheck, finalReward, PHOTO_PENALTY } from '../src/lib/points.js';
 test('monthKey 取 UTC 年-月', () => {
   assert.equal(monthKey('2026-10-07T09:00:00Z'), '2026-10');
 });
@@ -23,4 +23,15 @@ test('redeemCheck：余额不足/库存不足拒绝', () => {
   assert.deepEqual(redeemCheck({ balance: 50, cost: 40, stock: 2 }), { ok: true });
   assert.deepEqual(redeemCheck({ balance: 30, cost: 40, stock: 2 }), { ok: false, error: 'INSUFFICIENT_POINTS' });
   assert.deepEqual(redeemCheck({ balance: 50, cost: 40, stock: 0 }), { ok: false, error: 'OUT_OF_STOCK' });
+});
+test('finalReward：有图按档位全额，无图扣 2 分且不为负', () => {
+  assert.equal(PHOTO_PENALTY, 2);
+  assert.equal(finalReward({ tier: 'normal', rewardNormal: 10, rewardHigh: 25, hasPhoto: true }), 10);
+  assert.equal(finalReward({ tier: 'normal', rewardNormal: 10, rewardHigh: 25, hasPhoto: false }), 8);
+  assert.equal(finalReward({ tier: 'high', rewardNormal: 10, rewardHigh: 25, hasPhoto: true }), 25);
+  assert.equal(finalReward({ tier: 'high', rewardNormal: 10, rewardHigh: 25, hasPhoto: false }), 23);
+  // 配置被调低到 2 以下时不得出现负积分
+  assert.equal(finalReward({ tier: 'normal', rewardNormal: 1, rewardHigh: 25, hasPhoto: false }), 0);
+  // 字符串配置（后台 Settings 存的是 TEXT）也要能算
+  assert.equal(finalReward({ tier: 'high', rewardNormal: '10', rewardHigh: '25', hasPhoto: false }), 23);
 });

@@ -10,6 +10,7 @@ const api = (p, opt) => fetch('/api' + p, opt)
   .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
 
 const CATS = ['electronics', 'card', 'clothing', 'book', 'other'];
+const CAT_GLYPH = { electronics: '🎧', card: '🪪', clothing: '🧥', book: '📘', other: '📦' };
 const STATUS_CLS = { in_stock: 'status-ok', ready: 'status-warn', claim_pending: 'status-warn', registered: 'status-warn', returned: '' };
 const STATUS_KEY = { registered: 'status_registered', in_stock: 'status_in_stock', claim_pending: 'status_claim_pending', pending: 'status_pending', ready: 'status_ready', returned: 'status_returned', voided: 'status_voided', expired: 'status_expired' };
 let countdownTimer = null;
@@ -77,8 +78,140 @@ function applyStaticTexts() {
 
 // —— 工具 ——
 const fmtDate = (iso) => String(iso || '').slice(0, 10);
+const photoSrc = (p) => !p ? '' : (p.startsWith('/') || p.startsWith('http') ? p : '/api/photos/' + p);
+const catGlyph = (c) => CAT_GLYPH[c] || CAT_GLYPH.other;
+function timeAgo(iso) {
+  const t0 = Date.parse(iso);
+  if (!t0) return '';
+  const m = Math.max(0, Math.round((Date.now() - t0) / 60000));
+  if (m < 1) return t('ago_now');
+  if (m < 60) return t('ago_m').replace('{n}', m);
+  const h = Math.round(m / 60);
+  if (h < 48) return t('ago_h').replace('{n}', h);
+  return t('ago_d').replace('{n}', Math.round(h / 24));
+}
 const statusBadge = (s) => `<span class="status ${STATUS_CLS[s] || ''}">${t(STATUS_KEY[s] || 'status_registered')}</span>`;
 const errBox = (code, fallback) => `<p class="err">${esc(t('err_' + code) !== 'err_' + code ? t('err_' + code) : (fallback || t('error_generic')))}</p>`;
+
+// 缩略图：有照片用照片，没有照片用分类 glyph 占位（永不空白）
+function thumbHtml(item, cls = '') {
+  const src = photoSrc(item.photo_path);
+  const cat = esc(item.category || 'other');
+  return src
+    ? `<div class="thumb ${cls}" data-cat="${cat}"><img src="${esc(src)}" alt="${esc(item.title)}" loading="lazy" decoding="async">`
+      + `<span class="slot-plate">${String(item.slot_no ?? '—').padStart(2, '0')}</span></div>`
+    : `<div class="thumb thumb-empty cat-${cat} ${cls}" data-cat="${cat}"><span class="thumb-glyph" aria-hidden="true">${catGlyph(item.category)}</span>`
+      + `<span class="slot-plate">${String(item.slot_no ?? '—').padStart(2, '0')}</span></div>`;
+}
+
+// 图片 404 / 解码失败 → 就地降级成分类占位，绝不出现破图图标
+function wireThumbs(root) {
+  root.querySelectorAll('.thumb img, .rack-cell img').forEach((img) => {
+    if (img.dataset.wired) return;
+    img.dataset.wired = '1';
+    img.addEventListener('error', () => {
+      const box = img.parentElement;
+      if (!box) return;
+      const glyph = catGlyph(box.dataset.cat);
+      img.remove();
+      box.classList.add('thumb-empty');
+      if (!box.querySelector('.thumb-glyph, .rack-glyph')) {
+        const s = document.createElement('span');
+        s.className = box.classList.contains('rack-cell') ? 'rack-glyph' : 'thumb-glyph';
+        s.setAttribute('aria-hidden', 'true');
+        s.textContent = glyph;
+        box.prepend(s);
+      }
+    });
+  });
+}
+
+// —— v2.1.0 动效层：滚动进场 + 数字滚动 + 路由淡入 + 顶栏阴影 ——
+const REDUCE_MOTION = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function runCount(el) {
+  const target = Number(el.dataset.count);
+  if (!Number.isFinite(target)) return;
+  if (el.dataset.counted === '1' || REDUCE_MOTION()) return;
+  el.dataset.counted = '1';
+  const suffix = el.dataset.suffix || '';
+  const dur = 900;
+  const t0 = performance.now();
+  const tick = (now) => {
+    const p = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3);          // easeOutCubic
+    el.textContent = Math.round(target * eased) + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+    else el.textContent = target + suffix;
+  };
+  el.textContent = '0' + suffix;
+  requestAnimationFrame(tick);
+}
+
+function initMotion(root = $view) {
+  if (!root) return;
+  // 路由淡入
+  root.classList.remove('view-enter');
+  void root.offsetWidth;
+  root.classList.add('view-enter');
+
+  const reduce = REDUCE_MOTION();
+  const revealSel = '.impact-tile, .how-card, .item-card, .shop-card, .reunited, .claim-media, .claim-main, .board-head, .report-rows > .card, .ticket';
+  const nodes = [...root.querySelectorAll(revealSel)];
+  const counts = [...root.querySelectorAll('[data-count]')];
+
+  // 进场动画结束后把 .will-reveal 摘掉，避免它的 transform 压过 :hover 位移
+  const delayMs = (el) => {
+    const raw = getComputedStyle(el).transitionDelay || '0s';
+    return raw.split(',').map((v) => v.trim()).filter(Boolean)
+      .map((v) => (v.endsWith('ms') ? parseFloat(v) : parseFloat(v) * 1000))
+      .reduce((a, b) => Math.max(a, b), 0) || 0;
+  };
+  const reveal = (el) => {
+    el.classList.add('is-in');
+    setTimeout(() => {
+      el.classList.remove('will-reveal', 'is-in');
+      el.style.removeProperty('--reveal-delay');
+    }, 480 + delayMs(el));
+  };
+
+  if (reduce || !('IntersectionObserver' in window)) {
+    nodes.forEach((el) => el.classList.add('is-in'));
+    counts.forEach(runCount);
+    return;
+  }
+
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      reveal(e.target);
+      if (e.target.dataset && e.target.dataset.count) runCount(e.target);
+      e.target.querySelectorAll?.('[data-count]').forEach(runCount);
+      io.unobserve(e.target);
+    }
+  }, { rootMargin: '0px 0px -6% 0px', threshold: 0.08 });
+
+  nodes.forEach((el, i) => {
+    el.classList.add('will-reveal');
+    el.style.setProperty('--reveal-delay', `${Math.min(i, 8) * 55}ms`);
+    io.observe(el);
+  });
+  counts.forEach((el) => io.observe(el));
+  // 兜底：动画/观察器异常时 1.6s 内全部可见
+  setTimeout(() => {
+    nodes.forEach((el) => { if (!el.classList.contains('is-in')) reveal(el); });
+    counts.forEach((el) => { if (el.dataset.counted !== '1') runCount(el); });
+  }, 1600);
+}
+
+// 顶栏滚动阴影
+(function topbarShadow() {
+  const bar = document.querySelector('.topbar');
+  if (!bar) return;
+  const onScroll = () => bar.classList.toggle('is-scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
 
 // —— 离线补发：启动 + 恢复联网时重放队列（IndexedDB）——
 let flushNotice = 0;
@@ -116,64 +249,204 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) flus
 // ============ 公示首页 ============
 const cardHtml = (i) => `
   <a class="card item-card" href="#/claim/${i.id}">
-    <div class="meta"><span class="slot-tag">${t('slot_label')} ${i.slot_no ?? '—'}</span>${statusBadge(i.status)}</div>
-    <div class="item-title">${esc(i.title)}</div>
-    <div class="muted">${esc(i.description || '')}</div>
-    <div class="meta"><span>${t('cat_' + (i.category || 'other'))}</span><span class="muted">${fmtDate(i.found_at)}</span></div>
+    ${thumbHtml(i)}
+    <div class="item-body">
+      <div class="meta"><span>${t('cat_' + (i.category || 'other'))}</span><span class="muted">${timeAgo(i.found_at)}</span></div>
+      <div class="item-title">${esc(i.title)}</div>
+      <div class="muted clamp2">${esc(i.description || '')}</div>
+      <div class="item-foot">
+        <span class="loc">${esc(i.location || '')}</span>
+        ${statusBadge(i.status)}
+      </div>
+    </div>
   </a>`;
+
+// 橱柜可视化：右侧「Locker B」实时格位墙（用真实照片，空位留白）
+function rackHtml(items, stats) {
+  const cells = [];
+  const show = items.slice(0, 6);
+  for (const i of show) {
+    const src = photoSrc(i.photo_path);
+    cells.push(`<a class="rack-cell" href="#/claim/${i.id}" data-cat="${esc(i.category || 'other')}" title="${esc(i.title)}">
+      ${src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async">`
+        : `<span class="rack-glyph" aria-hidden="true">${catGlyph(i.category)}</span>`}
+      <span class="rack-no">${String(i.slot_no ?? '—').padStart(2, '0')}</span></a>`);
+  }
+  for (let k = show.length; k < 6; k++) cells.push(`<div class="rack-cell is-empty"><span class="rack-empty-txt">${t('rack_empty')}</span></div>`);
+  const occupied = stats?.occupied ?? show.length;
+  const slots = stats?.slots ?? 24;
+  const more = Math.max(0, occupied - show.length);
+  return `<div class="rack" aria-label="${t('rack_title')}">
+    <div class="rack-head"><span class="rack-title">${t('rack_title')}</span><span class="rack-live"><i></i>${t('rack_live')}</span></div>
+    <div class="rack-grid">${cells.join('')}</div>
+    <div class="rack-foot">${t('rack_more').replace('{n}', Math.max(0, slots - show.length))}</div>
+  </div>`;
+}
+
+function unitHtml(hours) {
+  if (hours == null) return t('impact_none');
+  if (hours < 1) return t('unit_less_hour');
+  if (hours < 48) return `${Math.round(hours)}${t('unit_hours')}`;
+  return `${Math.round(hours / 24)}${t('unit_days')}`;
+}
+
+// count-up 需要把「25h」拆成 数值 + 后缀
+function countParts(hours) {
+  if (hours == null) return { text: t('impact_none'), count: null };
+  if (hours < 1) return { text: t('unit_less_hour'), count: null };
+  if (hours < 48) return { text: `${Math.round(hours)}${t('unit_hours')}`, count: Math.round(hours), suffix: t('unit_hours') };
+  return { text: `${Math.round(hours / 24)}${t('unit_days')}`, count: Math.round(hours / 24), suffix: t('unit_days') };
+}
+
+function impactHtml(s) {
+  const avg = countParts(s.avg_return_hours);
+  const tiles = [
+    { k: 'impact_returned', text: s.returned_total, count: s.returned_total, sub: 'impact_returned_sub' },
+    { k: 'impact_board', text: s.on_board, count: s.on_board, sub: 'impact_board_sub' },
+    { k: 'impact_avg', text: avg.text, count: avg.count, suffix: avg.suffix || '', sub: 'impact_avg_sub' },
+    { k: 'impact_points', text: s.points_awarded, count: s.points_awarded, sub: 'impact_points_sub' },
+  ];
+  return `<section class="impact"><h2 class="sec-h">${t('impact_h')}</h2><div class="impact-grid">
+    ${tiles.map((tile) => `<div class="impact-tile">
+      <div class="impact-num mono"${tile.count != null ? ` data-count="${tile.count}" data-suffix="${esc(tile.suffix || '')}"` : ''}>${esc(tile.text)}</div>
+      <div class="impact-label">${t(tile.k)}</div>
+      <div class="impact-sub">${t(tile.sub)}</div></div>`).join('')}
+  </div></section>`;
+}
+
+function reunitedHtml(list) {
+  const rows = list.length
+    ? list.map((r) => {
+      const h = Number(r.hours || 0);
+      const dur = h < 48 ? t('reunited_in_hours').replace('{n}', Math.max(1, Math.round(h)))
+        : t('reunited_in_days').replace('{n}', Math.round(h / 24));
+      return `<div class="re-row">
+        <span class="re-glyph" aria-hidden="true">${catGlyph(r.category)}</span>
+        <span class="re-title">${esc(r.title)}</span>
+        <span class="re-dur mono">${dur}</span></div>`;
+    }).join('')
+    : `<p class="muted">${t('reunited_empty')}</p>`;
+  return `<section class="reunited"><div class="reunited-copy">
+    <h2 class="sec-h">${t('reunited_h')}</h2><p class="muted">${t('reunited_sub')}</p></div>
+    <div class="reunited-list">${rows}</div></section>`;
+}
+
+// 首屏骨架屏
+function skeletonHtml(n = 6) {
+  return `<div class="skeleton-grid" aria-busy="true" aria-label="${esc(t('loading'))}">
+    ${Array.from({ length: n }).map(() => `<div class="skel-card"><div class="skel-thumb"></div><div class="skel-line"></div><div class="skel-line short"></div></div>`).join('')}
+  </div>`;
+}
 
 async function renderHome(q) {
   const cat = q?.get('cat') || '';
-  $view.innerHTML = `<p class="muted">${t('loading')}</p>`;
-  const { body } = await api('/items' + (cat ? `?category=${encodeURIComponent(cat)}` : ''));
-  const items = Array.isArray(body.items) ? body.items : [];
-  const high = items.filter((i) => i.value_tier === 'high').length;
-  const nCats = new Set(items.map((i) => i.category)).size;
+  const query = (q?.get('q') || '').trim();
+  const params = new URLSearchParams();
+  if (cat) params.set('category', cat);
+  if (query) params.set('q', query);
+  const qs = params.toString();
+  $view.innerHTML = skeletonHtml(6);
+  const [listRes, statsRes, reunitedRes] = await Promise.all([
+    api('/items' + (qs ? '?' + qs : '')),
+    api('/stats').catch(() => ({ body: {} })),
+    api('/reunited').catch(() => ({ body: {} })),
+  ]);
+  const items = Array.isArray(listRes.body.items) ? listRes.body.items : [];
+  const stats = statsRes.body && statsRes.body.ok ? statsRes.body : {};
+  const reunited = Array.isArray(reunitedRes.body.items) ? reunitedRes.body.items : [];
+  const filtered = Boolean(cat || query);
+
   const filters = ['', ...CATS].map((c) =>
     `<button class="chip" aria-pressed="${c === cat}" data-cat="${c}">${c ? t('cat_' + c) : t('cat_all')}</button>`).join('');
+
   const list = items.length
     ? `<div class="layout"><div class="grid">${items.map(cardHtml).join('')}</div>
-       <aside><div class="card"><h3>${t('home_aside_title')}</h3>
+       <aside><div class="card aside-card"><h3>${t('home_aside_title')}</h3>
          <label class="field"><span>${t('home_aside_hint')}</span>
            <input id="asideSid" inputmode="numeric" pattern="\\d{7}" maxlength="7"></label>
-         <button class="btn btn-primary" id="asideGo">${t('home_aside_btn')}</button></div></aside></div>`
-    : `<div class="card"><p class="empty">${t('empty_home')}</p></div>`;
-  const hero = cat ? '' : '<section class="hero">'
-    + '<p class="hero-kicker">' + t('hero_kicker') + '</p>'
-    + '<h2 class="hero-title">' + t('hero_title') + '</h2>'
-    + '<p class="hero-sub">' + t('hero_sub') + '</p>'
-    + '<div class="hero-cta"><button class="btn btn-primary" id="heroBrowse" type="button">' + t('cta_browse') + '</button></div>'
-    + '<p class="hero-note">' + t('hero_note_report') + '</p>'
-    + '</section>';
-  const how = cat ? '' : '<section class="how"><h3 class="sec-h">' + t('how_h') + '</h3><div class="how-grid">'
-    + '<div class="how-card"><span class="how-n">1</span><b>' + t('how1_t') + '</b><p>' + t('how1_d') + '</p></div>'
-    + '<div class="how-card"><span class="how-n">2</span><b>' + t('how2_t') + '</b><p>' + t('how2_d') + '</p></div>'
-    + '<div class="how-card"><span class="how-n">3</span><b>' + t('how3_t') + '</b><p>' + t('how3_d') + '</p></div>'
-    + '</div></section>';
-  $view.innerHTML = (cat ? '' : hero + how)
-    + '<section id="board"><h3 class="sec-h">' + t('board_h') + '</h3>'
-    + '<div class="statbar"><span>' + t('stat_total') + ': ' + items.length + '</span><span>' + t('stat_high') + ': ' + high + '</span><span>' + t('stat_cats') + ': ' + nCats + '</span><span>' + t('stat_note') + '</span></div>'
-    + '<div class="filters">' + filters + '</div>' + list + '</section>';
+         <button class="btn btn-primary" id="asideGo">${t('home_aside_btn')}</button>
+         <p class="aside-hint muted">${t('shop_sub')}</p></div></aside></div>`
+    : `<div class="card"><p class="empty">${query ? esc(t('search_none').replace('{q}', query)) : t('empty_home')}</p></div>`;
+
+  const hero = filtered ? '' : `<section class="hero">
+      <div class="hero-copy">
+        <p class="hero-kicker">${t('hero_kicker')}</p>
+        <h1 class="hero-title">${t('hero_title')}</h1>
+        <p class="hero-sub">${t('hero_sub')}</p>
+        <div class="hero-cta">
+          <button class="btn btn-primary" id="heroBrowse" type="button">${t('cta_browse')}</button>
+          <a class="btn btn-ghost" href="#/report">${t('gnav_report')}</a>
+        </div>
+        <p class="hero-note">${t('hero_note_report')}</p>
+      </div>
+      <div class="hero-visual">${rackHtml(items, stats)}</div>
+    </section>`;
+
+  const how = filtered ? '' : `<section class="how"><h2 class="sec-h">${t('how_h')}</h2><div class="how-grid">
+      <div class="how-card"><span class="how-n">1</span><b>${t('how1_t')}</b><p>${t('how1_d')}</p></div>
+      <div class="how-card"><span class="how-n">2</span><b>${t('how2_t')}</b><p>${t('how2_d')}</p></div>
+      <div class="how-card"><span class="how-n">3</span><b>${t('how3_t')}</b><p>${t('how3_d')}</p></div>
+    </div></section>`;
+
+  $view.innerHTML = hero
+    + (filtered ? '' : impactHtml(stats))
+    + how
+    + `<section id="board">
+        <div class="board-head">
+          <div><h2 class="sec-h">${t('board_h')}</h2>
+            <p class="muted board-count">${t('board_count').replace('{n}', items.length)}</p></div>
+          <form class="search" role="search" id="boardSearchForm">
+            <input id="boardSearch" name="q" type="search" maxlength="40" value="${esc(query)}"
+                   placeholder="${t('search_ph')}" aria-label="${t('search_ph')}">
+            <button class="btn btn-primary" type="submit">${t('search_btn')}</button>
+            ${query ? `<a class="btn btn-ghost search-clear" href="#/${cat ? '?cat=' + cat : ''}">${t('search_clear')}</a>` : ''}
+          </form>
+        </div>
+        <div class="filters">${filters}</div>
+        ${list}</section>`
+    + (filtered ? '' : reunitedHtml(reunited));
+  wireThumbs($view);
+
+  const form = $view.querySelector('#boardSearchForm');
+  if (form) form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const v = $view.querySelector('#boardSearch').value.trim();
+    const p = new URLSearchParams();
+    if (cat) p.set('cat', cat);
+    if (v) p.set('q', v);
+    const s = p.toString();
+    location.hash = '#/' + (s ? '?' + s : '');
+  });
   $view.querySelectorAll('.chip[data-cat]').forEach((b) => b.addEventListener('click', () => {
-    location.hash = b.dataset.cat ? `#/?cat=${b.dataset.cat}` : '#/';
+    const p = new URLSearchParams();
+    if (b.dataset.cat) p.set('cat', b.dataset.cat);
+    if (query) p.set('q', query);
+    const s = p.toString();
+    location.hash = '#/' + (s ? '?' + s : '');
   }));
   const browse = $view.querySelector('#heroBrowse');
-  if (browse) browse.addEventListener('click', () => { const el = $view.querySelector('#board'); if (el) el.scrollIntoView({ behavior: 'smooth' }); });
+  if (browse) browse.addEventListener('click', () => {
+    const el = $view.querySelector('#board');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  });
   const go = $view.querySelector('#asideGo');
   if (go) go.addEventListener('click', () => {
     const sid = $view.querySelector('#asideSid').value.trim();
     if (/^\d{7}$/.test(sid)) location.hash = `#/shop?sid=${sid}`;   // 合并后：查积分 → 商城页
   });
+  initMotion($view);
 }
 
 // ============ 登记三步（全凭自觉：提交即分配格位，无凭证码；物品请自行放入对应格） ============
 function renderReport() {
   $view.innerHTML = `
-  <h3>${t('report_title')}</h3>
-  <form id="reportForm" class="rows">
+  <h2 class="page-title">${t('report_title')}</h2>
+  <p class="muted page-sub">${t('report_step2')}</p>
+  <form id="reportForm" class="rows report-rows">
     <div class="card"><div class="step">${t('report_step1')}</div>
       <input type="file" id="r_photo" accept="image/*" capture="environment">
-      <p class="muted" id="r_photo_note"></p></div>
+      <button type="button" class="no-photo-btn" id="r_no_photo" aria-pressed="false">${t('no_photo_btn')}</button>
+      <p class="muted" id="r_photo_note">${t('no_photo_note')}</p></div>
     <div class="card"><div class="step">${t('report_step2')}</div>
       <label class="field"><span>${t('report_f_title')}</span><input id="r_title" maxlength="40" required></label>
       <label class="field"><span>${t('report_f_cat')}</span><select id="r_cat">${CATS.map((c) => `<option value="${c}">${t('cat_' + c)}</option>`).join('')}</select></label>
@@ -183,11 +456,22 @@ function renderReport() {
     <div class="card"><div class="step">${t('report_step3')}</div>
       <label class="field"><span>${t('report_f_sid')}</span><input id="r_sid" inputmode="numeric" maxlength="7" placeholder="7 digits" required></label>
       <label class="field"><span>${t('report_f_name')}</span><input id="r_name" maxlength="20" required></label>
-      <label class="field"><span>${t('report_f_class')}</span><input id="r_class" maxlength="10" required></label></div>
+      <label class="field"><span>${t('report_f_class')}</span><input id="r_class" maxlength="10" required placeholder="e.g. 7B"></label></div>
     <button class="btn btn-primary" type="submit">${t('report_submit')}</button>
     <div id="reportMsg"></div>
   </form>`;
   document.getElementById('reportForm').addEventListener('submit', submitReport);
+  // v2.0.0：可以明确选「暂无图片」——该件归还时少计 2 分
+  const noBtn = document.getElementById('r_no_photo');
+  const fileInput = document.getElementById('r_photo');
+  noBtn.addEventListener('click', () => {
+    const on = noBtn.getAttribute('aria-pressed') !== 'true';
+    noBtn.setAttribute('aria-pressed', String(on));
+    noBtn.textContent = on ? t('no_photo_selected') : t('no_photo_btn');
+    fileInput.disabled = on;
+    if (on) fileInput.value = '';
+  });
+  initMotion($view);
 }
 async function submitReport(ev) {
   ev.preventDefault();
@@ -228,14 +512,17 @@ function renderReportDone(body) {
     </div>
   </div>
   <a class="btn btn-primary" href="#/">${t('report_done_back')}</a>`;
+  initMotion($view);
 }
+
 async function renderClaim(id) {
   $view.innerHTML = `<p class="muted">${t('loading')}</p>`;
   const { status, body } = await api('/items/' + encodeURIComponent(id));
   if (status !== 200 || !body.ok) return renderHomeish(t('err_ITEM_NOT_CLAIMABLE'));
   const it = body.item;
   const formHtml = it.status === 'in_stock' ? `
-    <div class="card"><h3>${t('claim_q_title')}</h3>
+    <div class="card claim-card"><h3>${t('claim_q_title')}</h3>
+      <p class="muted claim-intro">${t('claim_auto_hint')}</p>
       <form id="claimForm" class="rows">
         <label class="field"><span>${t('claim_answer_label')}</span><input id="c_answer" required maxlength="80"></label>
         <label class="field"><span>${t('f_student_id')}</span><input id="c_sid" required inputmode="numeric" pattern="\\d{7}" maxlength="7"></label>
@@ -248,25 +535,39 @@ async function renderClaim(id) {
       </form></div>`
     : `<p class="ok-note">${t('claim_ready_note')}</p>`;
   $view.innerHTML = `
-  <h3>${t('claim_title')}</h3>
-  <div class="card item-card">
-    <div class="meta"><span class="slot-tag">${t('slot_label')} ${it.slot_no ?? '—'}</span>${statusBadge(it.status)}</div>
-    <div class="item-title">${esc(it.title)}</div>
-    <div class="muted">${esc(it.description || '')}</div>
-    <dl class="detail-list">
-      <dt>${t('f_category')}</dt><dd>${t('cat_' + (it.category || 'other'))}${it.value_tier === 'high' ? ' · ' + t('tier_high') : ''}</dd>
-      <dt>${t('f_location')}</dt><dd>${esc(it.location)}</dd>
-      <dt>${t('found_at_label')}</dt><dd>${fmtDate(it.found_at)}</dd>
-      <dt>${t('finder_label')}</dt><dd>${esc(it.finder_name || '')}${it.finder_class ? ' · ' + esc(it.finder_class) : ''}</dd>
-    </dl></div>
+  <a class="back-link" href="#/"><span>← ${t('back_home')}</span></a>
+  <div class="claim-grid">
+    <div class="claim-media">${thumbHtml(it, 'is-large')}
+      <div class="claim-caption muted">${t('photo_alt')}</div>
+    </div>
+    <div class="claim-main">
+      <div class="meta claim-meta"><span class="slot-tag">${t('slot_label')} ${String(it.slot_no ?? '—').padStart(2, '0')}</span>${statusBadge(it.status)}
+        <span class="muted">${timeAgo(it.found_at)}</span></div>
+      <h2 class="page-title">${esc(it.title)}</h2>
+      <p class="claim-desc">${esc(it.description || '')}</p>
+      <dl class="detail-list">
+        <dt>${t('detail_category')}</dt><dd>${t('cat_' + (it.category || 'other'))}${it.value_tier === 'high' ? ' · ' + t('tier_high') : ''}</dd>
+        <dt>${t('venue_label')}</dt><dd>${esc(it.location)}</dd>
+        <dt>${t('found_at_label')}</dt><dd>${fmtDate(it.found_at)}</dd>
+        <dt>${t('finder_label')}</dt><dd>${esc(it.finder_name || '')}${it.finder_class ? ' · ' + esc(it.finder_class) : ''}</dd>
+      </dl>
+    </div>
+  </div>
   ${formHtml}`;
+  wireThumbs($view);
   const form = document.getElementById('claimForm');
   if (form) form.addEventListener('submit', (ev) => submitClaim(ev, it));
+  initMotion($view);
+}
+function renderHomeish(msg) {
+  $view.innerHTML = `<div class="card"><p class="empty">${esc(msg)}</p></div>
+    <a class="btn btn-primary" href="#/">${t('back_home')}</a>`;
 }
 
 async function submitClaim(ev, it) {
   ev.preventDefault();
-  const $ = (id) => document.getElementById(id);
+  // 注意：这个助手接收 '#id'，必须剥掉井号再交给 getElementById
+  const $ = (sel) => document.getElementById(String(sel).replace(/^#/, ''));
   const msg = $('#claimMsg');
   msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
   const { status, body } = await api('/claims', {
@@ -300,8 +601,8 @@ let shopCatalog = [];
 async function renderShop(q) {
   const preSid = q?.get('sid') || '';
   $view.innerHTML = `
-  <h3>${t('shop_title')}</h3>
-  <p class="muted">${t('shop_sub')}</p>
+  <h2 class="page-title">${t('shop_title')}</h2>
+  <p class="muted page-sub">${t('shop_sub')}</p>
   <div class="card">
     <label class="field"><span>${t('points_id_label')}</span>
       <input id="s_sid" inputmode="numeric" pattern="\\d{7}" maxlength="7" value="${esc(preSid)}" placeholder="7 digits"></label>
@@ -316,8 +617,10 @@ async function renderShop(q) {
   <div id="shopOrders"></div>`;
   document.getElementById('s_check').addEventListener('click', checkShopIdentity);
   document.getElementById('s_name').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkShopIdentity(); });
+  document.getElementById('s_sid').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkShopIdentity(); });
   await loadShop();
   if (preSid && /^\d{7}$/.test(preSid)) checkShopIdentity();
+  initMotion($view);
 }
 async function checkShopIdentity() {
   const sid = document.getElementById('s_sid').value.trim();
@@ -334,7 +637,10 @@ async function checkShopIdentity() {
   shopState = { sid, name, balance: body.total };
   msg.innerHTML = '';
   const stats = document.getElementById('shopStats');
-  if (stats) stats.innerHTML = `<div class="statbar"><span>${t('shop_balance')}: <b class="mono">${body.total}</b></span><span>${t('shop_returns')}: ${body.contributions}</span></div>`;
+  if (stats) stats.innerHTML = `<div class="balance-card"><div><div class="balance-label muted">${t('shop_balance')}</div>
+      <div class="balance-num mono">${body.total}</div></div>
+      <div class="balance-side"><div class="balance-label muted">${t('shop_returns')}</div>
+      <div class="balance-num mono">${body.contributions}</div></div></div>`;
   renderShopLedger(body);
   renderShopOrders(body.redemptions || []);
   loadShop();

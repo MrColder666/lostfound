@@ -35,7 +35,7 @@ body.k-body {
 
 /* 空闲屏主体 */
 .k-grid { flex: 1; display: grid; grid-template-columns: 1.8fr 1fr; gap: 16px; padding: 18px 22px; min-height: 0; }
-.k-actions { display: grid; grid-template-rows: 1fr 1fr auto; gap: 14px; }
+.k-actions { display: grid; grid-template-rows: 1fr 1fr auto; gap: 14px; min-height: 0; }
 .k-big { display: flex; align-items: center; gap: 18px; background: var(--color-bar); color: var(--color-on-brand);
   border: none; border-radius: 14px; padding: 20px 26px; cursor: pointer; text-align: left; min-height: 64px; }
 .k-big:hover { background: var(--color-accent); }
@@ -71,6 +71,8 @@ body.k-body {
 .k-biginput { font: 700 22px var(--font-mono); letter-spacing: 2px; }
 .k-label { font: 600 13px var(--font-ui); color: var(--color-muted); margin: 12px 0 6px; }
 .k-row { display: flex; gap: 10px; margin-top: 14px; align-items: end; }
+/* v2.0.0：Kiosk 登记可选「暂无图片」（该件归还少 2 分） */
+#repNoPhoto[aria-pressed="true"] { border-color: var(--color-warn); background: var(--color-warn-soft); color: var(--color-warn); font-weight: 700; }
 .k-field { flex: 1; display: block; }
 .k-chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
 .k-chiprow button { font: 600 15px var(--font-ui); border-radius: var(--radius-pill); padding: 10px 16px;
@@ -191,3 +193,20 @@ body.k-body {
   .k-bigmsg { font-size: 42px; }
   .k-slot-huge { font-size: 150px; }
 }
+
+/* —— v1.8.0：认领列表带缩略图 —— */.k-find-card .k-thumb { display: block; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden;
+  background: var(--color-cyan-soft); margin-bottom: 8px; }
+.k-find-card .k-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.k-find-card .k-thumb .k-thumb-glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: 34px; opacity: .5; }
+.k-find-card { padding: 10px; }
+
+/* —— v1.8.0：空闲屏右下角「扫码用手机打开」—— */
+.k-qr { margin-top: auto; display: flex; align-items: center; gap: 14px; padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,.16); }
+.k-qr-img { width: 96px; height: 96px; flex: 0 0 auto; background: #fff; border-radius: 8px; padding: 6px;
+  display: grid; place-items: center; }
+.k-qr-img svg { width: 100%; height: 100%; display: block; }
+.k-qr-txt { display: flex; flex-direction: column; gap: 3px; }
+.k-qr-txt b { font: 700 14px var(--font-ui); color: var(--color-on-brand); }
+.k-qr-txt small { font: 400 12px var(--font-ui); opacity: .7; }
+.k-thanks { margin-top: 14px; }

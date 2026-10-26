@@ -1,0 +1,114 @@
+[
+  {
+    "slug": "calculator",
+    "file": "/img/items/calculator.jpg",
+    "subject": "Scientific calculator",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/7680748/",
+    "bytes": 59918
+  },
+  {
+    "slug": "charger",
+    "file": "/img/items/charger.jpg",
+    "subject": "USB-C charger + cable",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/1028674/",
+    "bytes": 24851
+  },
+  {
+    "slug": "earbuds",
+    "file": "/img/items/earbuds.jpg",
+    "subject": "Wireless earbuds (black)",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/33797659/",
+    "bytes": 16985
+  },
+  {
+    "slug": "earphones",
+    "file": "/img/items/earphones.jpg",
+    "subject": "Wired earphones",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/210927/",
+    "bytes": 21180
+  },
+  {
+    "slug": "glasses",
+    "file": "/img/items/glasses.jpg",
+    "subject": "Black-frame glasses",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/8859619/",
+    "bytes": 139302
+  },
+  {
+    "slug": "hoodie",
+    "file": "/img/items/hoodie.jpg",
+    "subject": "Grey hoodie",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/6995877/",
+    "bytes": 71357
+  },
+  {
+    "slug": "keys",
+    "file": "/img/items/keys.jpg",
+    "subject": "Keys on a keyring",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/31424880/",
+    "bytes": 53646
+  },
+  {
+    "slug": "notebook",
+    "file": "/img/items/notebook.jpg",
+    "subject": "Notebook with class notes",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/37860169/",
+    "bytes": 52748
+  },
+  {
+    "slug": "pe-kit",
+    "file": "/img/items/pe-kit.jpg",
+    "subject": "PE kit (shirt + shorts)",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/27642332/",
+    "bytes": 134543
+  },
+  {
+    "slug": "student-card",
+    "file": "/img/items/student-card.jpg",
+    "subject": "Student card",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/7108126/",
+    "bytes": 71522
+  },
+  {
+    "slug": "tote-bag",
+    "file": "/img/items/tote-bag.jpg",
+    "subject": "Canvas tote bag",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/7735446/",
+    "bytes": 48740
+  },
+  {
+    "slug": "umbrella",
+    "file": "/img/items/umbrella.jpg",
+    "subject": "Black umbrella",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/31184040/",
+    "bytes": 89488
+  },
+  {
+    "slug": "wallet",
+    "file": "/img/items/wallet.jpg",
+    "subject": "Brown leather wallet",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/7952556/",
+    "bytes": 78014
+  },
+  {
+    "slug": "water-bottle",
+    "file": "/img/items/water-bottle.jpg",
+    "subject": "Sport water bottle",
+    "license": "Pexels License",
+    "source_url": "https://www.pexels.com/photo/7690201/",
+    "bytes": 33691
+  }
+]
