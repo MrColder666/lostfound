@@ -157,7 +157,7 @@ node --test --experimental-test-isolation=none tests/*.test.js   # 基线：101 
 ## 8. 版本与文档协议
 
 - **每次改动必须 bump 版本**：`package.json` 的 `version` + `CHANGELOG.md` 追加条目（Keep a Changelog 风格，中文）
-- 当前版本 **2.3.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
+- 当前版本 **2.4.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
 - 线上验证：`curl https://lostnfound.ominx.dpdns.org/api/stats` 应返回 `{"ok":true,...}`
 - 有 DB 变更时记得两处：本地 `--local --file=schema.sql`，线上 `--remote --file=migrations/<日期>-v<版本>-<主题>.sql`
 
@@ -165,7 +165,10 @@ node --test --experimental-test-isolation=none tests/*.test.js   # 基线：101 
 
 ## 9. 内容红线
 
-- **产品与一切交付物中不得出现竞选 / StuCo / election / campaign 字眼**（这是学校官方产品）
+- **产品交付物（PPT / 文档 / 截图）中不得出现竞选 / StuCo / election / campaign 字眼**（这是学校官方产品）
+- **例外（业主明确指示，2026-10-27）**：线上公告条 `settings.notice` 由业主本人放置竞选动员文案
+  （当前为 "Welcome to the STUCO election! Vote Charles Chen and Loic Ding!"，`notice_on=1`）。
+  这是**有意为之**，不要擅自关闭或清空；如需修改/关闭，先问业主。
 - 文案必须是人工口吻英文：不堆破折号、不用 `seamless / robust / leverage / unlock` 这类词、不用 emoji 当装饰
 - 真实学生数据（姓名/学号/PIN）不得出现在截图、文档、演示物料里
 
