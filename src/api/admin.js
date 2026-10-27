@@ -1,5 +1,5 @@
 // src/api/admin.js —— 唯一鉴权点：口令 或 2FA 会话令牌；失败计数限流（5 次/10 分钟/IP）
-import { monthKey } from '../lib/points.js';
+import { monthKey, ensureInitialPoints, ensureInitialPointsBatch } from '../lib/points.js';
 import { blocked, bump } from '../lib/guard.js';
 import { sha256Hex } from '../lib/hash.js';
 import { hashPin, validPin } from '../lib/pin.js';
@@ -20,7 +20,9 @@ const json = (o, s = 200) => Response.json(o, { status: s });
 async function studentRefCounts(db, sid) {
   const refs = {};
   for (const ref of STUDENT_REFS) {
-    const row = await db.prepare(`SELECT COUNT(*) AS n FROM ${ref.table} WHERE ${ref.column} = ?`).bind(sid).first();
+    // v2.4.0：初始 67 分不是「使用记录」——只有 initial 一条的学生仍然可以被删除
+    const where = ref.key === 'ledger' ? `${ref.column} = ? AND reason <> 'initial'` : `${ref.column} = ?`;
+    const row = await db.prepare(`SELECT COUNT(*) AS n FROM ${ref.table} WHERE ${where}`).bind(sid).first();
     refs[ref.key] = Number(row?.n || 0);
   }
   return refs;
@@ -68,7 +70,10 @@ async function deleteStudentIfClean(db, sid) {
   const decision = deleteDecision(await studentRefCounts(db, sid));
   if (decision.blocked) return { status: 'blocked', refs: decision.refs, summary: describeRefs(decision.entries) };
   try {
-    await db.prepare('DELETE FROM identities WHERE student_id=?').bind(sid).run();
+    await db.batch([
+      db.prepare("DELETE FROM points_ledger WHERE student_id=? AND reason='initial'").bind(sid),   // 初始分随学生一起清掉
+      db.prepare('DELETE FROM identities WHERE student_id=?').bind(sid),
+    ]);
   } catch (e) {
     const again = deleteDecision(await studentRefCounts(db, sid));
     if (again.blocked) return { status: 'blocked', refs: again.refs, summary: describeRefs(again.entries) };
@@ -417,6 +422,7 @@ export async function admin(db, env, req, token) {
     } catch (e) {
       return json({ ok: false, error: 'STUDENT_EXISTS' }, 409);
     }
+    await ensureInitialPoints(db, v.value.student_id);   // v2.4.0：后台建号同样给 67 初始积分
     await audit('student_create', v.value.student_id, `name:${v.value.name}:class:${v.value.class}:pin:${pin ? 'set' : 'none'}`);
     return json({ ok: true, student: { ...v.value, has_pin: !!pin } });
   }
@@ -531,13 +537,14 @@ export async function admin(db, env, req, token) {
       })) });
     }
     const results = [];
+    const imported = [];
     for (const chunk of chunkArray(rows.filter((r) => !r.error), 20)) {
       const statements = chunk.map((r) => db.prepare(`INSERT INTO identities(student_id,name,class) VALUES (?,?,?)
         ON CONFLICT(student_id) DO UPDATE SET name=excluded.name, class=excluded.class`)
         .bind(r.student_id, r.name, r.class));
       try {
         await db.batch(statements);
-        for (const r of chunk) results.push({ line: r.line, student_id: r.student_id, status: r.action === 'create' ? 'created' : 'updated' });
+        for (const r of chunk) { results.push({ line: r.line, student_id: r.student_id, status: r.action === 'create' ? 'created' : 'updated' }); imported.push(r.student_id); }
       } catch (e) {
         // One bad row should not sink the whole chunk: retry row by row.
         for (const r of chunk) {
@@ -546,12 +553,15 @@ export async function admin(db, env, req, token) {
               ON CONFLICT(student_id) DO UPDATE SET name=excluded.name, class=excluded.class`)
               .bind(r.student_id, r.name, r.class).run();
             results.push({ line: r.line, student_id: r.student_id, status: r.action === 'create' ? 'created' : 'updated' });
+            imported.push(r.student_id);
           } catch (e2) {
             results.push({ line: r.line, student_id: r.student_id, status: 'failed', error: 'WRITE_FAILED', message: 'This row could not be saved.' });
           }
         }
       }
     }
+    // v2.4.0：CSV 导入的学生同样补 67 初始分（幂等，只补没有 initial 记录的）
+    await ensureInitialPointsBatch(db, imported);
     for (const r of rows.filter((r) => r.error)) {
       results.push({ line: r.line, student_id: r.student_id, status: 'failed', error: r.error, message: r.message });
     }

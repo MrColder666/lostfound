@@ -455,6 +455,13 @@ async function loadHandouts() {
       + '</div></div>';
   }).join('') : '<p class="muted">No handouts yet.</p>';
   $$('#handouts [data-revoke]').forEach((b) => b.addEventListener('click', async () => {
+    const h = list.find((x) => String(x.claim_id) === String(b.dataset.revoke));
+    const ok = await confirmModal(
+      'Revoke the points for this handout?',
+      '<p>This takes back <b>' + ((h && h.granted) || 0) + ' points</b> from the finder. The item stays returned, and there is no undo in this console.</p>',
+      'Revoke points',
+    );
+    if (!ok) return;
     const rr = await api('/admin/points/revoke', { method: 'POST', body: JSON.stringify({ claim_id: Number(b.dataset.revoke) }) });
     toast(rr.status === 200 ? 'Points revoked (' + rr.body.revoked_points + ')' : rr.status === 409 ? 'Already revoked' : 'Failed');
     loadHandouts();
@@ -617,7 +624,7 @@ async function loadRewardsAdmin() {
     const ok = await confirmModal(
       'Delete "' + w.name + '"?',
       '<p>No orders use this reward, so it can go. This cannot be undone.</p>',
-      'Delete',
+      'Delete reward',
     );
     if (!ok) return;
     const rr = await api('/admin/rewards/delete', { method: 'POST', body: JSON.stringify({ id: w.id }) });
@@ -865,7 +872,7 @@ $('#st_table').addEventListener('click', async (e) => {
       return;
     }
     const ok = await confirmModal('Delete ' + sid + '?',
-      '<p>This removes <b>' + esc(refs.body.name || sid) + '</b> and their PIN. It cannot be undone.</p>', 'Delete');
+      '<p>This removes <b>' + esc(refs.body.name || sid) + '</b> and their PIN. It cannot be undone.</p>', 'Delete student');
     if (!ok) { loadStudents(); return; }
     const del = await api('/admin/students/delete', { method: 'POST', body: JSON.stringify({ student_id: sid }) });
     if (del.status === 200) toast('Student deleted');
@@ -928,7 +935,7 @@ $('#st_bulkClassGo').addEventListener('click', async () => {
   if (!cls) { toast('Type the new class first.'); return; }
   const ids = selectedIds();
   const ok = await confirmModal('Move ' + ids.length + (ids.length === 1 ? ' student' : ' students') + ' to ' + cls + '?',
-    '<p>This overwrites the class they are in now.</p>', 'Move');
+    '<p>This overwrites the class they are in now.</p>', 'Move them');
   if (!ok) return;
   const r = await api('/admin/students/bulk', { method: 'POST', body: JSON.stringify({ student_ids: ids, action: 'set_class', class: cls }) });
   if (r.status === 200) toast(r.body.updated + ' moved' + (r.body.missing ? ', ' + r.body.missing + ' not found' : ''));
@@ -948,7 +955,7 @@ $('#st_bulkPin').addEventListener('click', async () => {
 $('#st_bulkDelete').addEventListener('click', async () => {
   const ids = selectedIds();
   const ok = await confirmModal('Delete ' + ids.length + (ids.length === 1 ? ' student' : ' students') + '?',
-    '<p>Students who still have records are skipped. You will see the result for each one when it finishes.</p>', 'Delete');
+    '<p>Students who still have records are skipped. You will see the result for each one when it finishes.</p>', 'Delete students');
   if (!ok) return;
   const r = await api('/admin/students/delete', { method: 'POST', body: JSON.stringify({ student_ids: ids }) });
   if (r.status !== 200) { toast(errText(r, 'Delete failed.')); return; }

@@ -392,13 +392,13 @@ test('admin/handouts：列出出库记录（含积分与撤回状态）', async 
   assert.equal(body.handouts[0].granted, 10);
   assert.equal(body.handouts[0].revoked, false);
 });
-test('admin/points/revoke：冲销积分、余额归零、二次 409', async () => {
+test('admin/points/revoke：冲销积分、余额回到初始分、二次 409', async () => {
   const db = fakeDb(SCHEMA); const { claimId } = await mkHandout(db);
   const r1 = await admin(db, env, adminCall('/api/admin/points/revoke', 'POST', { claim_id: claimId }), 'T0KEN');
   assert.equal(r1.status, 200);
   assert.equal((await r1.json()).revoked_points, -10);
   const bal = await db.prepare("SELECT COALESCE(SUM(delta),0) t FROM points_ledger WHERE student_id='9031622'").first();
-  assert.equal(bal.t, 0);
+  assert.equal(bal.t, 67);   // v2.4.0：冲销掉 10 分归还奖励后，剩初始 67 分
   const r2 = await admin(db, env, adminCall('/api/admin/points/revoke', 'POST', { claim_id: claimId }), 'T0KEN');
   assert.equal(r2.status, 409);
   const body = await (await admin(db, env, adminCall('/api/admin/handouts'))).json();
@@ -613,4 +613,84 @@ test('2FA 门：有凭据后口令单独失效，会话令牌与 login-options �
   const sess = await createSession(db);
   const withSession = await admin(db, env, adminReq('/api/admin/stats', sess), '');
   assert.equal(withSession.status, 200);                                 // 会话令牌全量可用
+});
+
+// ---- v2.4.0：初始 67 分 + 月度「获得」额度（余额不按月重置）----
+import { monthKey as monthKeyOf, monthlyEarned } from '../src/lib/points.js';
+
+test('v2.4.0：新学生第一次出现 → +67 初始积分，且不占当月获得额度', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  const f = new FormData();
+  f.set('title', 'New kid item'); f.set('category', 'other'); f.set('location', 'Room 1');
+  f.set('student_id', '9031777'); f.set('name', 'New Kid'); f.set('class', '7B');
+  f.set('verify_q', 'q'); f.set('verify_a', 'a');
+  const body = await (await report(db, env, new Request('https://x/api/report', { method: 'POST', body: f }))).json();
+  assert.equal(body.ok, true);
+  const row = await db.prepare("SELECT delta, reason FROM points_ledger WHERE student_id='9031777'").first();
+  assert.equal(row.reason, 'initial');
+  assert.equal(row.delta, 67);
+  const bal = await db.prepare("SELECT COALESCE(SUM(delta),0) t FROM points_ledger WHERE student_id='9031777'").first();
+  assert.equal(bal.t, 67);
+  // 初始分不算「获得」
+  assert.equal(await monthlyEarned(db, '9031777', monthKeyOf(new Date().toISOString())), 0);
+});
+
+test('v2.4.0：当月获得额度只算归还奖励 + 打赏，兑换倒扣不返还额度', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  const mk = monthKeyOf(new Date().toISOString());
+  const ins = (sid, delta, reason) => db.prepare(
+    'INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES (?,?,?,?)').bind(sid, delta, reason, mk).run();
+  await ins('9031622', 67, 'initial');
+  await ins('9031622', 100, 'claim_reward');
+  await ins('9031622', -60, 'redeem');
+  await ins('9031622', 5, 'tip_in');
+  await ins('9031622', -5, 'tip_out');
+  assert.equal(await monthlyEarned(db, '9031622', mk), 105);   // 100 + 5，倒扣不影响
+});
+
+test('v2.4.0：单月获得满 100 后，再归还 → 0 分且标记 capped', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await (await report(db, env, mkReport())).json();
+  const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
+  await db.prepare(`INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_code,pickup_expires_at)
+    VALUES (?, '9031622', 'white tape', 'approved', '472916', '2026-12-01T00:00:00Z')`).bind(itemId).run();
+  const claimId = (await db.prepare('SELECT id FROM claims WHERE item_id=?').bind(itemId).first()).id;
+  const mk = monthKeyOf(new Date().toISOString());
+  await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES ('9031622',100,'claim_reward',?)").bind(mk).run();
+  const res = await fulfill(db, env, jr({ claim_id: String(claimId), student_id: '9031622', name: 'Alex Wang', pin: '1234' }));
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.points_granted, 0);
+  assert.equal(body.capped, true);
+});
+
+test('v2.4.0：当月只获得 90 → 下一个归还仍全额 +10（不跨月、不越界）', async () => {
+  const db = fakeDb(SCHEMA); await seed(db);
+  await (await report(db, env, mkReport())).json();
+  const itemId = (await db.prepare("SELECT id FROM items WHERE status='in_stock'").first()).id;
+  await db.prepare(`INSERT INTO claims(item_id,claimant_id,verify_answer,status,pickup_code,pickup_expires_at)
+    VALUES (?, '9031622', 'white tape', 'approved', '472916', '2026-12-01T00:00:00Z')`).bind(itemId).run();
+  const claimId = (await db.prepare('SELECT id FROM claims WHERE item_id=?').bind(itemId).first()).id;
+  const mk = monthKeyOf(new Date().toISOString());
+  await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,month_key) VALUES ('9031622',90,'claim_reward',?)").bind(mk).run();
+  const res = await fulfill(db, env, jr({ claim_id: String(claimId), student_id: '9031622', name: 'Alex Wang', pin: '1234' }));
+  const body = await res.json();
+  assert.equal(body.points_granted, 10);
+  assert.equal(body.capped, false);
+});
+
+// ---- v2.4.0：初始分不阻塞学生删除 ----
+test('v2.4.0：只有初始分的新学生可以删除，初始分随学生一起清掉', async () => {
+  const db = fakeDb(SCHEMA);
+  const r1 = await admin(db, env, adminCall('/api/admin/students', 'POST', { student_id: '9031778', name: 'Temp Kid', class: '7B' }), 'T0KEN');
+  assert.equal(r1.status, 200);
+  const total = await db.prepare("SELECT COALESCE(SUM(delta),0) t FROM points_ledger WHERE student_id='9031778'").first();
+  assert.equal(total.t, 67);                              // 后台建号也给初始分
+  const r2 = await admin(db, env, adminCall('/api/admin/students/delete', 'POST', { student_id: '9031778' }), 'T0KEN');
+  assert.equal(r2.status, 200);
+  assert.equal((await r2.json()).deleted, true);
+  const left = await db.prepare("SELECT COUNT(*) c FROM points_ledger WHERE student_id='9031778'").first();
+  assert.equal(left.c, 0);                                // 初始分随学生清掉
+  const idn = await db.prepare("SELECT COUNT(*) c FROM identities WHERE student_id='9031778'").first();
+  assert.equal(idn.c, 0);
 });

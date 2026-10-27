@@ -81,7 +81,11 @@ tests/                   node:test 用例（101 个）
 - **乐观锁**：所有状态跃迁都是 `UPDATE … WHERE status=旧值` + `changes===1`，否则 409
 - **身份**：`identities` 学号首写为准（姓名不匹配 → 403），姓名归一化匹配
 - **PIN**：4 位，PBKDF2-SHA256(100k) + 盐；首次使用时设置；错误 10 次/小时限流
-- **积分**：普通 10 / 高价值 25（Settings 可调）；**每人每月上限 100**；打赏三限（绑定出库单 / 每单一次 / 计入上限）
+- **积分（v2.4.0 明确口径）**：
+  - 归还奖励 普通 10 / 高价值 25（Settings 可调）；打赏三限（绑定出库单 / 每单一次）
+  - **余额永不清零**（= `SUM(points_ledger.delta)`）；**不存在按月重置**
+  - 只有「当月最多**获得** 100 分」的额度按月刷新；计入额度的只有 `claim_reward` + `tip_in`（`monthlyEarned()`）。兑换倒扣、管理员调整、初始分**都不占/不返还**额度
+  - **每人初始 67 分**（`reason='initial'`，不占当月额度）；手机首写、Kiosk、后台建号、CSV 导入都会补（幂等 `ensureInitialPoints`）；初始分不阻止删除学生
 - **无照片扣分**：登记时选「暂无图片」的物品，出库结算少 2 分（`PHOTO_PENALTY`，`src/lib/points.js:finalReward`）
 - **认领防刷**：活跃 ≤3 / 每日 ≤5（`CLAIM_ACTIVE_CAP` / `CLAIM_DAILY_CAP`）
 - **settings 表**：slots / pickup_ttl_hours / claim_active_cap / claim_daily_cap / reward_normal / reward_high / month_cap / snatch_min / notice / notice_on
@@ -126,6 +130,8 @@ tests/                   node:test 用例（101 个）
 14. **改 `.dev.vars` 后必须重启 `wrangler dev`**；后台接口 401 多半是 `ADMIN_TOKEN` 没加载。
 15. **后台路径**：`/admin.html`、`/kiosk.html` 会被 307 到 `/admin`、`/kiosk`（wrangler 静态资源行为，浏览器无感）。
 16. **`secret put` 的非交互提示**（"There doesn't seem to be a Worker…"）不是报错。
+17. **月度额度别用净流水算**：曾用 `SUM(delta) WHERE month_key=?` 当「本月已获得」，导致兑换一次就把额度"赚回来"，与「每月最多获得 100」不符。必须走 `monthlyEarned()`（只算 `claim_reward` + `tip_in` 且 `delta>0`）。
+18. **新增「每人一笔」类流水会牵连删除逻辑**：初始 67 分曾让 `STUDENT_REFS` 的 ledger 计数永远 >0 → 任何学生都删不掉。规则：这类系统流水要么从引用计数里排除（`reason <> 'initial'`），要么随主体一起删除。
 
 ---
 

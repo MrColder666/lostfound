@@ -1,7 +1,7 @@
 // src/api/kiosk.js —— 所有状态跃迁：UPDATE…WHERE 旧状态 + changes==1（§10 乐观锁）
 // v1.6.0：领取代码通道已下线 —— 现场凭「学号 + 姓名 + PIN」；verifyPickup 已删除
 import { isExpired } from '../lib/codes.js';
-import { grantWithCap, monthKey, finalReward, PHOTO_PENALTY } from '../lib/points.js';
+import { grantWithCap, monthKey, monthlyEarned, finalReward, PHOTO_PENALTY } from '../lib/points.js';
 import { checkImage } from '../lib/image.js';
 import { normalize } from '../lib/verify.js';
 import { pinGate } from '../lib/identity.js';
@@ -40,12 +40,13 @@ async function completeHandout(db, env, claim, evidencePath) {
   if (rs.some(r => r.meta.changes !== 1)) return json({ ok: false, error: 'CONFLICT' }, 409);
   const mk = monthKey(now.toISOString());
   const st = await getSettings(db);
-  const agg = await db.prepare("SELECT COALESCE(SUM(delta),0) AS t FROM points_ledger WHERE student_id=? AND month_key=?").bind(claim.registered_by, mk).first();
+  // v2.4.0：本月已「获得」只算归还奖励 + 打赏收入（兑换扣分、初始分不占额度）
+  const earned = await monthlyEarned(db, claim.registered_by, mk);
   // v2.0.0：登记时选了「暂无图片」→ 结算扣 2 分
   const hasPhoto = !!claim.photo_path;
   const want = finalReward({ tier: claim.value_tier, hasPhoto,
     rewardNormal: st.reward_normal || 10, rewardHigh: st.reward_high || 25 });
-  const { delta, capped } = grantWithCap({ monthTotal: agg.t, want, cap: Number(st.month_cap || 100) });
+  const { delta, capped } = grantWithCap({ monthTotal: earned, want, cap: Number(st.month_cap || 100) });
   if (delta > 0)
     await db.prepare("INSERT INTO points_ledger(student_id,delta,reason,ref_type,ref_id,month_key) VALUES (?,?,'claim_reward','claim',?,?)")
       .bind(claim.registered_by, delta, claim.id, mk).run();

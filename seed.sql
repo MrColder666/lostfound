@@ -52,6 +52,11 @@ INSERT INTO items (code, title, description, category, location, slot_no, status
    strftime('%Y-%m-%dT%H:%M:%SZ','now','-22 days'), strftime('%Y-%m-%dT%H:%M:%SZ','now','-22 days'), strftime('%Y-%m-%dT%H:%M:%SZ','now','-22 days','+44 hours'));
 
 -- ── 积分流水（成果指标「Points awarded」需要真实数据）──────────────────
+-- v2.4.0：每位学生初始 67 分（reason=initial，不占当月「获得」额度）
+INSERT INTO points_ledger (student_id, delta, reason, ref_type, ref_id, month_key, created_at) VALUES
+  ('9031622', 67, 'initial', 'identity', '9031622', strftime('%Y-%m','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now','-30 days')),
+  ('9031623', 67, 'initial', 'identity', '9031623', strftime('%Y-%m','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now','-30 days')),
+  ('9031624', 67, 'initial', 'identity', '9031624', strftime('%Y-%m','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now','-30 days'));
 INSERT INTO points_ledger (student_id, delta, reason, ref_type, ref_id, month_key, created_at) VALUES
   ('9031623', 10, 'claim_reward', 'claim', 1, strftime('%Y-%m','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now','-7 days')),
   ('9031624', 10, 'claim_reward', 'claim', 2, strftime('%Y-%m','now'), strftime('%Y-%m-%dT%H:%M:%SZ','now','-9 days')),

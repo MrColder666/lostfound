@@ -1,5 +1,5 @@
 // src/api/points.js —— 查询分级、打赏、兑换（v1.6.0：兑换需身份+PIN；v1.6.1：库存门防超卖）
-import { tipCheck, redeemCheck, monthKey, grantWithCap } from '../lib/points.js';
+import { tipCheck, redeemCheck, monthKey, monthlyEarned, grantWithCap } from '../lib/points.js';
 import { normalize } from '../lib/verify.js';
 import { verifyPin } from '../lib/pin.js';
 import { pinGate } from '../lib/identity.js';
@@ -36,8 +36,9 @@ export async function tip(db, env, req) {
   const chk = tipCheck({ claim, tipper: from, tipped });
   if (!chk.ok) return json({ ok: false, error: chk.error }, chk.error === 'ALREADY_TIPPED' ? 409 : 400);
   const mk = monthKey(new Date().toISOString());
-  const agg = (await db.prepare('SELECT COALESCE(SUM(delta),0) t FROM points_ledger WHERE student_id=? AND month_key=?').bind(to, mk).first()).t;
-  const { delta, capped } = grantWithCap({ monthTotal: agg, want: points, cap: 100 });   // 打赏计入接收者月上限
+  // v2.4.0：打赏收入计入接收者当月「获得」额度（只算归还奖励 + 打赏，不含倒扣/初始分）
+  const earned = await monthlyEarned(db, to, mk);
+  const { delta, capped } = grantWithCap({ monthTotal: earned, want: points, cap: 100 });
   try {
     await db.batch([
       db.prepare("INSERT INTO points_ledger(student_id,delta,reason,ref_type,ref_id,month_key) VALUES (?,?, 'tip_in','claim',?,?)").bind(to, delta, claim_id, mk),

@@ -2,13 +2,16 @@
 import { normalize } from './verify.js';
 import { hashPin, verifyPin } from './pin.js';
 import { blocked, bump } from './guard.js';
+import { ensureInitialPoints } from './points.js';
 export async function upsertIdentitySafe(db, { student_id, name, class: cls }) {
   const idn = await db.prepare('SELECT name FROM identities WHERE student_id=?').bind(student_id).first();
   if (!idn) {
     await db.prepare('INSERT INTO identities(student_id,name,class) VALUES (?,?,?)').bind(student_id, name, cls || '').run();
+    await ensureInitialPoints(db, student_id);   // v2.4.0：每个学生 67 初始积分
     return { ok: true, created: true };
   }
   if (normalize(idn.name) !== normalize(name)) return { ok: false, error: 'IDENTITY_NAME_MISMATCH' };
+  await ensureInitialPoints(db, student_id);     // 后台建号 / 历史账号：补齐初始分（幂等）
   return { ok: true, created: false };
 }
 export async function pinGate(db, sid, pin) {

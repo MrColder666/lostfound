@@ -132,7 +132,7 @@ const EN = {
   points_forbidden: 'Name does not match. Details are hidden.',
   points_ledger_title: 'Points ledger',
   points_ledger_empty: 'No points activity yet',
-  reason_claim_reward: 'Return reward', reason_tip_in: 'Tip received', reason_tip_out: 'Tip sent', reason_redeem: 'Redemption', reason_adjust: 'Admin adjust', reason_revoke: 'Reversed',
+  reason_claim_reward: 'Return reward', reason_tip_in: 'Tip received', reason_tip_out: 'Tip sent', reason_redeem: 'Redemption', reason_adjust: 'Admin adjust', reason_revoke: 'Reversed', reason_initial: 'Starting balance',
   redeem_status_pending: 'Pending', redeem_status_fulfilled: 'Fulfilled', redeem_status_cancelled: 'Cancelled',
   mall_cost: 'pts',
   err_INSUFFICIENT_POINTS: 'Not enough points',
