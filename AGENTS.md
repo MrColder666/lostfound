@@ -1,7 +1,7 @@
 # AGENTS.md — L&F 校园失物招领系统
 
 > 面向后续接手这个仓库的 AI agent / 开发者。**改任何东西前先读完 §6 已知坑。**
-> 最后更新：2026-10-26 · 版本 v2.2.0
+> 最后更新：2026-10-27 · 版本 v2.3.0
 
 ---
 
@@ -100,6 +100,10 @@ tests/                   node:test 用例（101 个）
   - `prefers-reduced-motion: reduce` 下必须整体降级
   - 页面进场用 `.will-reveal` + IntersectionObserver（`initMotion()`），动画结束后自动摘类
   - **Kiosk 不加动效**（硬件性能与稳定性优先，`kiosk.css` 不要引入动效层）
+  - **hover 位移必须门控触屏**：`@media (hover: none)` 里把位移回退（颜色反馈保留），否则手机上点按后卡片会一直浮着
+  - 禁止用 `padding` / `width` / `top` 做 hover 动画（`.re-row` 曾这样抖过），一律 `transform`
+- **商城兑换必须带 PIN**：服务端 `redeemCore` → `pinGate` 是硬门（4 位；首次使用即设置），前端必须渲染 `#s_pin` 并在兑换前校验，否则兑换永远失败
+- **背景页语义**：每个路由至少一个 `h1`（首页 hero、登记/商城/详情 page-title、后台标题）
 
 ---
 
@@ -112,14 +116,16 @@ tests/                   node:test 用例（101 个）
 4. **入场动画禁用 `animation-fill-mode: both`**：尾帧 `transform:none` 会永久压住 `:hover` 位移（v2.1 已改成 `backwards`）。
 5. **`.will-reveal` 类必须在动画结束后摘除**，否则它同样压住 hover；兜底定时器也要走 `reveal()` 而不是只加 `is-in`。
 6. **Kiosk 的每个按钮都要有显式监听**：`#repTo3`（登记第 2 步 Next）从 v1.7.x 起就没绑事件，一直是死按钮。
-7. **Service Worker**：改了 `public/` 下的静态资源要升 `sw.js` 的 `CACHE` 版本号（当前 `lf-v7`），否则老用户拿缓存。
+7. **Service Worker 是 cache-first**：改了 `public/` 下的静态资源必须升 `sw.js` 的 `CACHE`（当前 `lf-v8`），否则老用户会长期拿到旧 CSS/JS。升版后旧缓存会在 activate 阶段清掉。
 8. **照片链路（v2.2.0 已修）**：账户**没有启用 R2**，`env.PHOTOS` 一直是 `undefined`，所以历史上 `env.PHOTOS?.put()` 静默跳过 → 上传 200 但照片 404（用户说的「图片上传不了」）。现在统一走 `src/lib/photo.js`：`putPhoto()` 优先写 R2，未启用就落 D1 的 `photos` 表（BLOB，单张 ≤1.1MB）；`getPhoto()` 两条路都读。**新增照片写入/读取不要再直接碰 `env.PHOTOS`。** 迁移：`migrations/2026-10-26-v2.2.0-photos.sql`。演示图仍是静态 `/img/items/*.jpg`，`photoSrc()` 区分 `/` 开头与相对路径。
 9. **删大段 JS 时先 grep 区间内的函数调用**：清理 Kiosk 空闲屏时把 `paintQr()`（扫码进手机版）一起删了 → 控制台 `paintQr is not defined`、二维码空白。删完必须跑一遍页面控制台检查。
-10. **截图/演示数据**：不要用生产库截图——曾把真实学生姓名（Jonas Cao）截进 PPT。演示截图一律用本地 `seed.sql` 数据。
-11. **不要用 PowerShell `-replace` 改源码文件**：曾把 `sw.js` 的中文注释写成乱码并删掉 `SHELL` 常量。改文件用编辑器/写文件工具。
-12. **改 `.dev.vars` 后必须重启 `wrangler dev`**；后台接口 401 多半是 `ADMIN_TOKEN` 没加载。
-13. **后台路径**：`/admin.html`、`/kiosk.html` 会被 307 到 `/admin`、`/kiosk`（wrangler 静态资源行为，浏览器无感）。
-14. **`secret put` 的非交互提示**（"There doesn't seem to be a Worker…"）不是报错。
+10. **「代码里引用了 id」≠「页面上有这个元素」**：商城曾从 `#s_pin` 读 PIN，但模板里从未渲染它 → 兑换静默失败。改前端交互前，先确认元素真的被渲染（v2.3.0 修复）。
+11. **原生 `input[type=file]` 不要直接裸露**：系统语言会显示「选择文件 / 未选择文件」，与英文界面割裂。用 `.visually-hidden` + `<label class="btn" for="r_photo">` 自定义按钮 + 缩略图预览。
+12. **截图/演示数据**：不要用生产库截图——曾把真实学生姓名（Jonas Cao）截进 PPT。演示截图一律用本地 `seed.sql` 数据。
+13. **不要用 PowerShell `-replace` 改源码文件**：曾把 `sw.js` 的中文注释写成乱码并删掉 `SHELL` 常量。改文件用编辑器/写文件工具。
+14. **改 `.dev.vars` 后必须重启 `wrangler dev`**；后台接口 401 多半是 `ADMIN_TOKEN` 没加载。
+15. **后台路径**：`/admin.html`、`/kiosk.html` 会被 307 到 `/admin`、`/kiosk`（wrangler 静态资源行为，浏览器无感）。
+16. **`secret put` 的非交互提示**（"There doesn't seem to be a Worker…"）不是报错。
 
 ---
 
@@ -145,7 +151,7 @@ node --test --experimental-test-isolation=none tests/*.test.js   # 基线：101 
 ## 8. 版本与文档协议
 
 - **每次改动必须 bump 版本**：`package.json` 的 `version` + `CHANGELOG.md` 追加条目（Keep a Changelog 风格，中文）
-- 当前版本 **2.2.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
+- 当前版本 **2.3.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
 - 线上验证：`curl https://lostnfound.ominx.dpdns.org/api/stats` 应返回 `{"ok":true,...}`
 - 有 DB 变更时记得两处：本地 `--local --file=schema.sql`，线上 `--remote --file=migrations/<日期>-v<版本>-<主题>.sql`
 

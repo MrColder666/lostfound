@@ -440,12 +440,18 @@ async function renderHome(q) {
 // ============ 登记三步（全凭自觉：提交即分配格位，无凭证码；物品请自行放入对应格） ============
 function renderReport() {
   $view.innerHTML = `
-  <h2 class="page-title">${t('report_title')}</h2>
-  <p class="muted page-sub">${t('report_step2')}</p>
+  <h1 class="page-title">${t('report_title')}</h1>
+  <p class="muted page-sub">${t('report_sub')}</p>
   <form id="reportForm" class="rows report-rows">
     <div class="card"><div class="step">${t('report_step1')}</div>
-      <input type="file" id="r_photo" accept="image/*" capture="environment">
-      <button type="button" class="no-photo-btn" id="r_no_photo" aria-pressed="false">${t('no_photo_btn')}</button>
+      <div class="photo-pick">
+        <div class="photo-thumb" id="photoThumb" hidden></div>
+        <div class="photo-actions">
+          <label class="btn btn-ghost" for="r_photo" id="photoAddLabel">${t('photo_add')}</label>
+          <input class="visually-hidden" type="file" id="r_photo" accept="image/*" capture="environment" aria-label="${t('photo_add')}">
+          <button type="button" class="no-photo-btn" id="r_no_photo" aria-pressed="false">${t('no_photo_btn')}</button>
+        </div>
+      </div>
       <p class="muted" id="r_photo_note">${t('no_photo_note')}</p></div>
     <div class="card"><div class="step">${t('report_step2')}</div>
       <label class="field"><span>${t('report_f_title')}</span><input id="r_title" maxlength="40" required></label>
@@ -461,15 +467,40 @@ function renderReport() {
     <div id="reportMsg"></div>
   </form>`;
   document.getElementById('reportForm').addEventListener('submit', submitReport);
-  // v2.0.0：可以明确选「暂无图片」——该件归还时少计 2 分
+
+  // 照片：自定义按钮 + 缩略图预览；「暂无图片」是明确的二选一（该件归还少 2 分）
   const noBtn = document.getElementById('r_no_photo');
   const fileInput = document.getElementById('r_photo');
+  const thumb = document.getElementById('photoThumb');
+  const addLabel = document.getElementById('photoAddLabel');
+  let previewUrl = '';
+  const paintPhoto = (file) => {
+    if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = ''; }
+    if (file) {
+      previewUrl = URL.createObjectURL(file);
+      thumb.hidden = false;
+      thumb.innerHTML = `<img src="${previewUrl}" alt="${esc(t('photo_attached'))}">`;
+      addLabel.textContent = t('photo_change');
+    } else {
+      thumb.hidden = true;
+      thumb.innerHTML = '';
+      addLabel.textContent = t('photo_add');
+    }
+  };
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0] || null;
+    if (file) {
+      noBtn.setAttribute('aria-pressed', 'false');
+      noBtn.textContent = t('no_photo_btn');
+    }
+    paintPhoto(file);
+  });
   noBtn.addEventListener('click', () => {
     const on = noBtn.getAttribute('aria-pressed') !== 'true';
     noBtn.setAttribute('aria-pressed', String(on));
     noBtn.textContent = on ? t('no_photo_selected') : t('no_photo_btn');
     fileInput.disabled = on;
-    if (on) fileInput.value = '';
+    if (on) { fileInput.value = ''; paintPhoto(null); }
   });
   initMotion($view);
 }
@@ -489,7 +520,14 @@ async function submitReport(ev) {
   const vq = document.getElementById('r_verify').value.trim();
   if (vq) { fd.set('verify_q', 'Please describe a detail only the owner would know'); fd.set('verify_a', vq); }
   const file = document.getElementById('r_photo').files[0];
-  if (file) { try { fd.set('photo', await sanitize(file)); } catch { /* 图片处理失败则不附照片 */ } }
+  if (file) {
+    try { fd.set('photo', await sanitize(file)); }
+    catch {
+      // 之前是静默丢掉照片：用户以为附上了，其实没有。明确告知并让他重选。
+      msg.innerHTML = `<p class="err">${t('err_photo_unreadable')}</p>`;
+      return;
+    }
+  }
   msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
   if (!navigator.onLine) {   // 离线：入队，恢复后自动补发（IndexedDB，不用 localStorage）
     await idbPut('queue', undefined, { url: '/api/report', body: [...fd.entries()] });
@@ -543,7 +581,7 @@ async function renderClaim(id) {
     <div class="claim-main">
       <div class="meta claim-meta"><span class="slot-tag">${t('slot_label')} ${String(it.slot_no ?? '—').padStart(2, '0')}</span>${statusBadge(it.status)}
         <span class="muted">${timeAgo(it.found_at)}</span></div>
-      <h2 class="page-title">${esc(it.title)}</h2>
+      <h1 class="page-title">${esc(it.title)}</h1>
       <p class="claim-desc">${esc(it.description || '')}</p>
       <dl class="detail-list">
         <dt>${t('detail_category')}</dt><dd>${t('cat_' + (it.category || 'other'))}${it.value_tier === 'high' ? ' · ' + t('tier_high') : ''}</dd>
@@ -600,13 +638,17 @@ let shopState = { sid: '', name: '', balance: null };
 let shopCatalog = [];
 async function renderShop(q) {
   const preSid = q?.get('sid') || '';
+  shopState = { sid: '', name: '', balance: null };
   $view.innerHTML = `
-  <h2 class="page-title">${t('shop_title')}</h2>
+  <h1 class="page-title">${t('shop_title')}</h1>
   <p class="muted page-sub">${t('shop_sub')}</p>
   <div class="card">
     <label class="field"><span>${t('points_id_label')}</span>
       <input id="s_sid" inputmode="numeric" pattern="\\d{7}" maxlength="7" value="${esc(preSid)}" placeholder="7 digits"></label>
     <label class="field"><span>${t('points_name_label')}</span><input id="s_name" maxlength="20" placeholder="Name"></label>
+    <label class="field"><span>${t('pin_label')}</span>
+      <input id="s_pin" inputmode="numeric" pattern="\\d{4}" maxlength="4" placeholder="${t('pin_ph')}">
+      <small class="muted">${t('pin_hint')}</small></label>
     <div class="actions"><button class="btn btn-primary" id="s_check">${t('shop_check')}</button></div>
     <div id="s_msg"></div>
   </div>
@@ -616,8 +658,9 @@ async function renderShop(q) {
   <div id="shopMsg"></div>
   <div id="shopOrders"></div>`;
   document.getElementById('s_check').addEventListener('click', checkShopIdentity);
-  document.getElementById('s_name').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkShopIdentity(); });
-  document.getElementById('s_sid').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkShopIdentity(); });
+  ['s_name', 's_sid', 's_pin'].forEach((id) => {
+    document.getElementById(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') checkShopIdentity(); });
+  });
   await loadShop();
   if (preSid && /^\d{7}$/.test(preSid)) checkShopIdentity();
   initMotion($view);
@@ -625,12 +668,16 @@ async function renderShop(q) {
 async function checkShopIdentity() {
   const sid = document.getElementById('s_sid').value.trim();
   const name = document.getElementById('s_name').value.trim();
+  const pin = document.getElementById('s_pin').value.trim();
   const msg = document.getElementById('s_msg');
   if (!/^\d{7}$/.test(sid)) { msg.innerHTML = errBox('BAD_STUDENT_ID', t('err_bad_student_id')); return; }
+  if (!name && !pin) { msg.innerHTML = errBox('FORBIDDEN', t('shop_need_check')); return; }
   msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
-  const pin = document.getElementById('s_pin') ? document.getElementById('s_pin').value.trim() : '';
-  const qs = name ? `?name=${encodeURIComponent(name)}` : (pin ? `?pin=${encodeURIComponent(pin)}` : '');
-  const { status, body } = await api(`/points/${sid}${qs}`);
+  // 姓名优先（弱校验，看余额/明细）；只填 PIN 时走 PIN 校验
+  const params = new URLSearchParams();
+  if (name) params.set('name', name);
+  if (pin) params.set('pin', pin);
+  const { status, body } = await api(`/points/${sid}?${params.toString()}`);
   if (status === 404) { msg.innerHTML = errBox('NOT_FOUND', t('points_not_found')); return; }
   if (status === 403) { msg.innerHTML = errBox('FORBIDDEN', t('points_forbidden')); return; }
   if (!body.ok) { msg.innerHTML = errBox(body.error); return; }
@@ -671,16 +718,17 @@ async function loadShop() {
   const { body } = await api('/rewards').catch(() => ({ body: {} }));
   shopCatalog = Array.isArray(body.rewards) ? body.rewards : [];
   if (!shopCatalog.length) { grid.innerHTML = `<p class="muted">${t('shop_empty')}</p>`; return; }
-  grid.innerHTML = shopCatalog.map((r) => {
+  const known = shopState.balance !== null;   // 先校验身份才解锁兑换，避免点了才发现没登录
+  grid.innerHTML = `${known ? '' : `<p class="muted shop-lock">${t('shop_locked')}</p>`}` + shopCatalog.map((r) => {
     const out = r.stock <= 0;
-    const short = shopState.balance !== null && shopState.balance < r.cost;
+    const short = known && shopState.balance < r.cost;
     const need = short ? `${t('shop_need_more')} ${r.cost - shopState.balance}` : '';
     return `<div class="shop-card${out ? ' is-out' : ''}">
       <div class="shop-ico">${esc(r.icon || '🎁')}</div>
       <div class="shop-name">${esc(r.name)}</div>
       <div class="shop-meta"><span class="shop-cost">${r.cost}</span><span>${t('mall_cost')} · ${t('shop_stock_left')} ${r.stock}</span></div>
       ${need ? `<div class="shop-need">${need}</div>` : ''}
-      <button class="btn btn-primary" data-rid="${r.id}" ${out || short ? 'disabled' : ''}>${out ? t('shop_sold_out') : t('shop_redeem')}</button>
+      <button class="btn btn-primary" data-rid="${r.id}" ${out || short || !known ? 'disabled' : ''}>${out ? t('shop_sold_out') : t('shop_redeem')}</button>
     </div>`;
   }).join('');
   grid.querySelectorAll('[data-rid]').forEach((b) => b.addEventListener('click', () => redeemReward(Number(b.dataset.rid))));
@@ -689,8 +737,14 @@ async function redeemReward(rid) {
   const msg = document.getElementById('shopMsg');
   if (!shopState.sid) { msg.innerHTML = errBox('UNAUTHORIZED', t('shop_check')); return; }
   const rw = shopCatalog.find((x) => x.id === rid);
-  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
   const pin = document.getElementById('s_pin') ? document.getElementById('s_pin').value.trim() : '';
+  if (!/^\d{4}$/.test(pin)) {
+    // 兑换必须带 PIN（服务端也是硬门）——先本地拦住并明确告知
+    msg.innerHTML = errBox('PIN_FORMAT', t('shop_need_pin'));
+    document.getElementById('s_pin')?.focus();
+    return;
+  }
+  msg.innerHTML = `<p class="muted">${t('loading')}</p>`;
   const { status, body } = await api('/redemptions', { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ student_id: shopState.sid, reward_id: rid, name: shopState.name, pin }) });
   if (status === 200 && body.ok) {

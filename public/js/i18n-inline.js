@@ -35,6 +35,9 @@ const EN = {
   shop_returns: 'Returns',
   shop_check: 'Check balance',
   shop_redeem: 'Redeem',
+  shop_need_check: 'Enter your student ID, plus your name or PIN, then check your balance.',
+  shop_need_pin: 'Enter your 4-digit PIN to redeem. First time? It becomes your PIN.',
+  shop_locked: 'Check your balance first to unlock redeeming.',
   shop_sold_out: 'Sold out',
   shop_stock_left: 'left',
   shop_need_more: 'Need',
@@ -75,9 +78,13 @@ const EN = {
 
   // —— 登记 ——
   report_title: 'Report a found item',
+  report_sub: 'Anything you hand in gets a locker number and goes on the board right away.',
   report_step1: 'Step 1. Photo (optional)',
   report_step2: 'Step 2. Item details',
   report_step3: 'Step 3. Your details',
+  photo_add: 'Add a photo',
+  photo_change: 'Change photo',
+  photo_attached: 'Photo attached',
   f_category: 'Category *',
   f_location: 'Found at *',
   f_student_id: 'Your student ID * (7 digits)',
@@ -102,6 +109,7 @@ const EN = {
   report_done_title: 'Registered. Put it in the slot.', report_done_hint: 'Place the item in the numbered slot above. It is already on the board.',
   report_done_foot: 'Points go to your student ID once someone claims and picks it up.', report_done_back: 'Back to the board',
   report_failed: 'The report did not go through. Please try again.', err_bad_student_id: 'Student ID must be 7 digits',
+  err_photo_unreadable: 'That photo could not be read. Try another one, or report without a photo.',
 
   // —— 认领 ——
   claim_title: 'Item details and claim',
