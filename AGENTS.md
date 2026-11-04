@@ -1,7 +1,7 @@
 # AGENTS.md — L&F 校园失物招领系统
 
 > 面向后续接手这个仓库的 AI agent / 开发者。**改任何东西前先读完 §6 已知坑。**
-> 最后更新：2026-10-27 · 版本 v2.3.0
+> 最后更新：2026-11-04 · 版本 v2.5.0
 
 ---
 
@@ -23,6 +23,8 @@
 ---
 
 ## 2. 一分钟上手
+
+> **规格唯一来源**：仓库根 `spec.md`（重建级说明书，含全部规则/接口/视觉/验收）。本文档只记录面向维护者的约定与坑，两者冲突时以 `spec.md` 为准。
 
 ```bash
 cd D:\lostfound-work
@@ -157,7 +159,7 @@ node --test --experimental-test-isolation=none tests/*.test.js   # 基线：101 
 ## 8. 版本与文档协议
 
 - **每次改动必须 bump 版本**：`package.json` 的 `version` + `CHANGELOG.md` 追加条目（Keep a Changelog 风格，中文）
-- 当前版本 **2.4.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
+- 当前版本 **2.5.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
 - 线上验证：`curl https://lostnfound.ominx.dpdns.org/api/stats` 应返回 `{"ok":true,...}`
 - 有 DB 变更时记得两处：本地 `--local --file=schema.sql`，线上 `--remote --file=migrations/<日期>-v<版本>-<主题>.sql`
 
