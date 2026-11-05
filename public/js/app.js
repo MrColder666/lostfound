@@ -2,6 +2,7 @@
 import { t } from './i18n-inline.js';
 import { put as idbPut, all as idbAll, del as idbDel } from './idb.js';
 import { sanitize } from './canvas-image.js';
+import { initExperience } from './motion-3d.js';
 
 const $view = document.getElementById('view');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -154,6 +155,7 @@ function initMotion(root = $view) {
   root.classList.remove('view-enter');
   void root.offsetWidth;
   root.classList.add('view-enter');
+  initExperience(root);
 
   const reduce = REDUCE_MOTION();
   const revealSel = '.impact-tile, .how-card, .item-card, .shop-card, .reunited, .claim-media, .claim-main, .board-head, .report-rows > .card, .ticket';
@@ -261,25 +263,28 @@ const cardHtml = (i) => `
     </div>
   </a>`;
 
-// 橱柜可视化：右侧「Locker B」实时格位墙（用真实照片，空位留白）
+// 橱柜可视化：CSS 3D 实时格位墙。每个格门都是真实物品链接；触屏/减动效自动降级为平面图。
 function rackHtml(items, stats) {
   const cells = [];
   const show = items.slice(0, 6);
-  for (const i of show) {
+  for (const [index, i] of show.entries()) {
     const src = photoSrc(i.photo_path);
-    cells.push(`<a class="rack-cell" href="#/claim/${i.id}" data-cat="${esc(i.category || 'other')}" title="${esc(i.title)}">
-      ${src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async">`
-        : `<span class="rack-glyph" aria-hidden="true">${catGlyph(i.category)}</span>`}
-      <span class="rack-no">${String(i.slot_no ?? '—').padStart(2, '0')}</span></a>`);
+    cells.push(`<a class="rack-cell" href="#/claim/${i.id}" data-cat="${esc(i.category || 'other')}" title="${esc(i.title)}" style="--door:${index}">
+      <span class="rack-door-face">
+        ${src ? `<img src="${esc(src)}" alt="${esc(i.title)}" loading="eager" decoding="async">`
+          : `<span class="rack-glyph" aria-hidden="true">${catGlyph(i.category)}</span>`}
+        <span class="rack-no">${String(i.slot_no ?? '—').padStart(2, '0')}</span>
+      </span></a>`);
   }
-  for (let k = show.length; k < 6; k++) cells.push(`<div class="rack-cell is-empty"><span class="rack-empty-txt">${t('rack_empty')}</span></div>`);
-  const occupied = stats?.occupied ?? show.length;
+  for (let k = show.length; k < 6; k++) cells.push(`<div class="rack-cell is-empty" style="--door:${k}"><span class="rack-door-face"><span class="rack-empty-txt">${t('rack_empty')}</span></span></div>`);
   const slots = stats?.slots ?? 24;
-  const more = Math.max(0, occupied - show.length);
-  return `<div class="rack" aria-label="${t('rack_title')}">
-    <div class="rack-head"><span class="rack-title">${t('rack_title')}</span><span class="rack-live"><i></i>${t('rack_live')}</span></div>
-    <div class="rack-grid">${cells.join('')}</div>
-    <div class="rack-foot">${t('rack_more').replace('{n}', Math.max(0, slots - show.length))}</div>
+  return `<div class="rack-scene">
+    <div class="rack" aria-label="${t('rack_title')}">
+      <div class="rack-head"><span class="rack-title">${t('rack_title')}</span><span class="rack-live"><i></i>${t('rack_live')}</span></div>
+      <div class="rack-grid">${cells.join('')}</div>
+      <div class="rack-foot"><span>${t('rack_more').replace('{n}', Math.max(0, slots - show.length))}</span><span class="rack-hint">${t('rack_hint')}</span></div>
+    </div>
+    <div class="rack-floor" aria-hidden="true"></div>
   </div>`;
 }
 
@@ -382,7 +387,7 @@ async function renderHome(q) {
       <div class="hero-visual">${rackHtml(items, stats)}</div>
     </section>`;
 
-  const how = filtered ? '' : `<section class="how"><h2 class="sec-h">${t('how_h')}</h2><div class="how-grid">
+  const how = filtered ? '' : `<section class="how"><div class="section-heading"><h2 class="sec-h">${t('how_h')}</h2><p>${t('how_sub')}</p></div><div class="how-grid">
       <div class="how-card"><span class="how-n">1</span><b>${t('how1_t')}</b><p>${t('how1_d')}</p></div>
       <div class="how-card"><span class="how-n">2</span><b>${t('how2_t')}</b><p>${t('how2_d')}</p></div>
       <div class="how-card"><span class="how-n">3</span><b>${t('how3_t')}</b><p>${t('how3_d')}</p></div>

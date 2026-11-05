@@ -225,13 +225,14 @@ const EN = {
 
   // —— 主站导航与首页 ——
   gnav_board: 'Board', gnav_report: 'Report',
+  rack_hint: 'Move to explore · tap a locker to open it',
   hero_kicker: 'Campus lost and found',
-  hero_title: 'Lost something? It may already be at the desk.',
+  hero_title: 'Lost it? Find it here.',
   hero_sub: 'Anything handed in on campus gets a locker number and shows up here. Find your item, claim it, and pick it up at the desk.',
   cta_browse: 'Browse the board',
   hero_note_report: 'Found something? Report it here, or at the desk kiosk.',
   wx_banner: 'WeChat limits some features on this page. Tap ⋯ at the top right and choose "Open in Browser".',
-  how_h: 'How it works',
+  how_h: 'From found to back home', how_sub: 'One numbered hand-off at a time.',
   how1_t: 'Report it', how1_d: 'Hand the item to the desk, or report it from your phone. Either way you get a locker number to put it in.',
   how2_t: 'It goes on the board', how2_d: 'The item appears here with its locker number, so whoever lost it can find it.',
   how3_t: 'Pick it up and earn points', how3_d: 'Collect it at the desk with your student ID. The finder gets points for the return.',
