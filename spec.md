@@ -829,7 +829,9 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 ```
 
 - head 必须包含：`theme-color #005EBB`、`description`、manifest、favicon 全套（16/32/48 + apple-touch-icon 180）、`apple-mobile-web-app-title`。
-- 品牌位：gnav 顶部与 topbar 左侧显示**校徽**（`/icons/smic-logo.png`，白底圆形衬底）；底部 tabbar 中央 Report 按钮带「＋」（装饰性 span，不参与 i18n 替换）。
+- 品牌位：gnav 顶部与 topbar 左侧显示**校徽**（`/icons/smic-logo.png`，白底圆形衬底）。
+- **校徽即回家入口（v2.6.0）**：桌面 `a.gnav-logo[href="#/"]`、手机 `a.logo`。点击时若不在首页 → 回 `#/`；已在首页 → 平滑滚回顶部。
+- 底部 tabbar 中央 Report 按钮（v2.6.0）：**只显示「＋」**（54px 圆形），文案 `Report` 放在 `.fab-tip` 气泡里，默认隐形；`@media (hover:hover) and (pointer:fine)` 下悬停 **1 秒**淡入于按钮上方，移开即消失；`hover:none` 设备不显示气泡，无障碍靠 `aria-label="Report"`。
 - 正文使用 `<h1>` 语义：首页 hero、登记/商城/详情页各自有 page-title，后台标题。
 
 ### 7.2 路由（hash 路由，无需服务端支持）
@@ -940,7 +942,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 ### 7.9 PWA 与 Service Worker
 
 - **manifest**：`id:"/"`、name/short_name、description、`start_url:"/"`、`scope:"/"`、`display:"standalone"` + `display_override:["standalone","minimal-ui"]`、背景 `#F2F6FB`、主题 `#005EBB`、`lang:"en"`、`orientation:"any"`、categories、icons（16–512 + maskable192/512 + monochrome）、shortcuts（Report / Shop 两个，带 96px 图标）。
-- **SW**：缓存名 `lf-v9`；安装时 `skipWaiting()` + 尽力预缓存 SHELL（任一失败不阻断，`c.add(u).catch(()=>null)`）；激活时删旧缓存 + `clients.claim()`；fetch 策略：
+- **SW**：缓存名 `lf-v11`；安装时 `skipWaiting()` + 尽力预缓存 SHELL（任一失败不阻断，`c.add(u).catch(()=>null)`）；激活时删旧缓存 + `clients.claim()`；fetch 策略：
   - `/api/*` 直接放行（不缓存个人数据）；
   - `woff2/png/jpg/jpeg/svg/ico` → 缓存优先；
   - 其它（HTML/JS/CSS）→ **网络优先，成功则回写缓存，失败回退缓存**。
@@ -955,6 +957,21 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 - 表单错误必须就近显示（`.err` 红底卡片），不能只在 console。
 
 ---
+
+### 7.11 首次使用引导（v2.6.0）
+
+**目标**：新设备第一次打开主站时，用 4 步聚光介绍关键位置；**同一设备只出现一次**。
+
+- **触发**：仅 `#/` 首页渲染完成后（延迟 700ms）；若 `localStorage['lf_tour_v1'] === 'done'` 直接跳过。深链接（`#/claim/*`、`#/report`、`#/shop`）不打断，之后回到首页再触发。
+- **步骤**（动态收集，缺省则跳过该步）：
+  1. 公告栏 `.notice-bar`（`notice_on=false` 时不显示此步）
+  2. 物品板头部 `#board .board-head`
+  3. ＋ 按钮 `.tabbar .fab`
+  4. Rewards 标签 `.tabbar [data-route="#/shop"]`
+- **视觉**：全屏 `z-index:90` 遮罩层，`box-shadow: 0 0 0 9999px rgba(9,14,20,.58)` 在目标处挖洞（14px 圆角 + 2px 白色描边）；卡片 `z-index:91`，白底圆角 18，含进度条点、标题、一句话说明、`Skip` / `Next`（最后一步文案 `Got it`）。
+- **交互**：卡片聚焦（`role=dialog`、`aria-modal=true`）；`Esc` 关闭；`Tab` 焦点锁在卡片按钮间；滚动/缩放实时重算高亮位置；`html.tour-open` 锁定页面滚动；`prefers-reduced-motion` 关闭过渡。
+- **记忆**：`Skip` / `Got it` / `Esc` 任一方式关闭 → 写 `localStorage['lf_tour_v1']='done'`，该设备此后永不弹出。清站点数据/换浏览器才会重新出现。
+- **隔离**：`kiosk.html` 只加载 `kiosk.js`，不含本模块 → 现场端零影响；`admin.html` 同样不加载。
 
 ## 8. Kiosk 现场端（`/kiosk`）
 

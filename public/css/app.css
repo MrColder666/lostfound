@@ -1,5 +1,5 @@
 * { box-sizing: border-box; margin: 0; }
-html, body { overflow-x: clip; }                 /* 防横向滚动（断点纪律） */
+html, body { overflow-x: hidden; }                /* 防横向滚动（断点纪律）；注意：clip 会让 iOS WebKit 整页无法滚动 */
 body { font-family: var(--font-ui); background: var(--color-paper); color: var(--color-ink);
        font-size: 15px; line-height: 1.5; padding-bottom: 76px; }  /* 底部 Tab 高度预留 */
 .card { background: var(--color-surface); border: 1px solid var(--color-rule);
@@ -44,12 +44,13 @@ body { font-family: var(--font-ui); background: var(--color-paper); color: var(-
 .tabbar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--color-surface);
           border-top: 1px solid var(--color-rule); display: flex; justify-content: space-around;
           padding: 8px 0 10px; z-index: 30; }
-.tabbar .fab { width: auto; min-width: 48px; height: 48px; padding: 0 16px; border-radius: var(--radius-pill);
-               background: var(--color-accent); color: var(--color-on-brand); margin-top: -18px;
+.tabbar .fab { width: 54px; min-width: 54px; height: 54px; padding: 0; border-radius: 50%;
+               position: relative;
+               background: var(--color-accent); color: var(--color-on-brand); margin-top: -20px;
                border: 3px solid var(--color-paper); font: 800 13px/1 var(--font-ui);
                display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
                gap: 5px; }
-.tabbar .fab .fab-plus { font: 900 16px/1 var(--font-ui); display: inline-block; transform: translateY(-.5px); }
+.tabbar .fab .fab-plus { font: 900 22px/1 var(--font-ui); display: inline-block; transform: translateY(-.5px); }
 .tabbar > button:not(.fab) { background: transparent; border: 0; color: var(--color-ink); font: 600 12px var(--font-ui); }
 /* 大屏适配（§9.3）：≥768 双列；≥1024 网格三列 + 侧栏 */
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
@@ -466,3 +467,55 @@ input.visually-hidden { padding: 0; margin: -1px; border: 0; min-width: 0; min-h
 .gnav-logo img { width: 44px; height: 44px; background: #fff; border-radius: 50%; padding: 3px; display: block; }
 .topbar .logo { display: inline-flex; align-items: center; gap: 8px; }
 .topbar .logo img { width: 30px; height: 30px; display: block; border-radius: 50%; background: #fff; }
+
+/* —— v2.6.0：＋按钮气泡（桌面悬停 1 秒浮出；触屏永远纯 ＋）—— */
+.tabbar .fab .fab-tip {
+  position: absolute; bottom: calc(100% + 12px); left: 50%;
+  transform: translate(-50%, 4px); opacity: 0; pointer-events: none;
+  background: var(--color-ink); color: var(--color-paper);
+  font: 700 12px/1 var(--font-ui); letter-spacing: .02em;
+  padding: 8px 11px; border-radius: 999px; white-space: nowrap;
+  transition: opacity .16s var(--ease-out), transform .16s var(--ease-out);
+}
+.tabbar .fab .fab-tip::after {
+  content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: var(--color-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tabbar .fab:hover .fab-tip { opacity: 1; transform: translate(-50%, 0); transition-delay: 1s; }
+}
+@media (hover: none) { .tabbar .fab .fab-tip { display: none; } }
+
+/* 校徽可点击回家的反馈 */
+.gnav-logo { border-radius: 0; }
+.gnav-logo img { transition: transform var(--dur-base) var(--ease-out); }
+.gnav-logo:hover img, .topbar .logo:hover img { transform: scale(1.06); }
+
+/* —— v2.6.0：首次使用引导（4 步聚光）—— */
+.tour { position: fixed; inset: 0; z-index: 90; }
+.tour-dim {
+  position: fixed; background: rgba(9, 14, 20, .58); pointer-events: none; z-index: 90;
+}
+.tour-hole {
+  position: fixed; border-radius: 14px; pointer-events: none; z-index: 90;
+  outline: 2px solid rgba(255, 255, 255, .8); outline-offset: 0;
+  /* 不用超大 box-shadow：iOS 合成层扛不住，会把 WebView 拖死 */
+}
+.tour-card {
+  position: fixed; left: 16px; right: 16px; margin: 0 auto; max-width: 440px;
+  background: var(--color-surface); color: var(--color-ink);
+  border: 1px solid var(--color-rule); border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(6, 12, 20, .28);
+  padding: 18px 18px 14px; z-index: 91;
+}
+.tour-card h2 { margin: 0 0 6px; font: 800 18px/1.25 var(--font-ui); color: var(--color-navy); }
+.tour-card p { margin: 0 0 14px; font: 400 14px/1.55 var(--font-ui); color: var(--color-muted); }
+.tour-dots { display: flex; gap: 6px; margin-bottom: 12px; }
+.tour-dots i { width: 22px; height: 4px; border-radius: 2px; background: var(--color-rule); transition: background var(--dur-base) var(--ease-out); }
+.tour-dots i.on { background: var(--color-accent); }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tour-skip { background: transparent; border: 0; color: var(--color-muted); font: 600 13px var(--font-ui); padding: 10px 4px; cursor: pointer; }
+.tour-next { background: var(--color-accent); color: var(--color-on-brand); border: 0; border-radius: 999px;
+             font: 700 14px var(--font-ui); padding: 10px 18px; cursor: pointer; }
+.tour-next:active { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) { .tour-hole, .tour-dots i, .gnav-logo img { transition: none !important; } }

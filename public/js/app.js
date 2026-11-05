@@ -35,6 +35,7 @@ function router() {
     return;
   }
   (routes[path] || renderHome)(q);
+  if (path === '#/') scheduleTour();   // v2.6.0：首访引导（每设备一次）
 }
 // 导航按钮（非 <a> 的 tab/侧边栏）必须显式绑定路由——否则点击无反应
 document.querySelectorAll('[data-route]').forEach((b) => {
@@ -57,8 +58,8 @@ document.querySelectorAll('[data-route]').forEach((b) => {
   } catch { /* 提示失败不影响主流程 */ }
 })();
 
-// 公告栏（后台 Settings 可开关）
-(async () => {
+// 公告栏（后台 Settings 可开关）；siteInfoReady 供首访引导等待
+const siteInfoReady = (async () => {
   try {
     const r = await fetch('/api/site');
     const b = await r.json();
@@ -69,7 +70,7 @@ document.querySelectorAll('[data-route]').forEach((b) => {
       document.body.prepend(bar);
     }
   } catch { /* 公告失败不影响主流程 */ }
-})();
+})().catch(() => {});
 
 // —— i18n ——
 function applyStaticTexts() {
@@ -766,7 +767,207 @@ async function redeemReward(rid) {
 }
 
 
-// —— 启动 ——（修复：此前缺初始路由，首次打开无 # 的 URL 时空白，只能点导航触发 hashchange）
+// —— v2.6.0：左上角校徽回首页 ——
+// 桌面 .gnav-logo 从 div 改为 <a>（此前根本没绑定点击）；手机 .topbar .logo 已在首页时滚回顶部。
+document.querySelectorAll('.topbar .logo, .gnav-logo').forEach((el) => {
+  el.addEventListener('click', (e) => {
+    e.preventDefault();
+    if ((location.hash || '#/') !== '#/') { location.hash = '#/'; return; }
+    // 已在首页：滚回顶部（scrollIntoView 比 scrollTo 在 iOS WebKit 上更可靠）
+    try { document.querySelector('.topbar').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    catch (_) { window.scrollTo(0, 0); }
+  });
+});
+
+/* ============================================================
+   首次使用引导（v2.6.0）
+   - 每台设备只出现一次：Skip / Got it / Esc 都会写 localStorage
+   - 只在首页触发，深链接不打断
+   - kiosk.html 不加载本文件 → 现场端零改动
+   ============================================================ */
+const TOUR_KEY = 'lf_tour_v1';
+let tourEls = null;
+let tourItems = [];
+let tourStep = 0;
+let tourTimer = null;
+
+function tourSeen() {
+  try { return localStorage.getItem(TOUR_KEY) === 'done'; } catch (_) { return true; }
+}
+function tourMarkSeen() {
+  try { localStorage.setItem(TOUR_KEY, 'done'); } catch (_) { /* 隐私模式忽略 */ }
+}
+
+const tourVisible = (el) => {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && el.getClientRects().length > 0;
+};
+
+function tourSteps() {
+  const steps = [];
+  const notice = document.querySelector('.notice-bar');
+  if (tourVisible(notice)) steps.push({
+    el: notice,
+    title: 'School notices',
+    body: 'Front-desk updates — closures, events, reminders — show up here. Worth a glance each visit.'
+  });
+  const board = document.querySelector('#board .board-head') || document.querySelector('#board');
+  if (tourVisible(board)) steps.push({
+    el: board,
+    title: 'The board',
+    body: 'Every item handed in is listed with a locker number. Open a card to claim what is yours.'
+  });
+  // 桌面（≥1024px）隐藏 tabbar，改用左侧导航对应项
+  const fab = tourVisible(document.querySelector('.tabbar .fab'))
+    ? document.querySelector('.tabbar .fab')
+    : document.querySelector('.gnav [data-route="#/report"]');
+  if (tourVisible(fab)) steps.push({
+    el: fab,
+    title: 'Report a find',
+    body: 'Tap + to report something you found. The same form is on the desk kiosk if you are downstairs.'
+  });
+  const shop = tourVisible(document.querySelector('.tabbar [data-route="#/shop"]'))
+    ? document.querySelector('.tabbar [data-route="#/shop"]')
+    : document.querySelector('.gnav [data-route="#/shop"]');
+  if (tourVisible(shop)) steps.push({
+    el: shop,
+    title: 'Rewards',
+    body: 'Handing things in earns points. Spend them on rewards in the shop.'
+  });
+  return steps;
+}
+
+function tourPlace() {
+  if (!tourEls || !tourItems.length) return;
+  const item = tourItems[tourStep];
+  const r = item.el.getBoundingClientRect();
+  const pad = 6;
+  const hole = tourEls.hole;
+  const hTop = Math.round(r.top - pad), hLeft = Math.round(r.left - pad);
+  const hW = Math.round(r.width + pad * 2), hH = Math.round(r.height + pad * 2);
+  hole.style.top = hTop + 'px';
+  hole.style.left = hLeft + 'px';
+  hole.style.width = hW + 'px';
+  hole.style.height = hH + 'px';
+  const vw = window.innerWidth, vh0 = window.innerHeight;
+  const d = tourEls.dims;
+  d.top.style.cssText = 'top:0;left:0;width:100%;height:' + Math.max(0, hTop) + 'px';
+  d.bottom.style.cssText = 'top:' + (hTop + hH) + 'px;left:0;width:100%;height:' + Math.max(0, vh0 - hTop - hH) + 'px';
+  d.left.style.cssText = 'top:' + hTop + 'px;left:0;width:' + Math.max(0, hLeft) + 'px;height:' + hH + 'px';
+  d.right.style.cssText = 'top:' + hTop + 'px;left:' + (hLeft + hW) + 'px;width:' + Math.max(0, vw - hLeft - hW) + 'px;height:' + hH + 'px';
+
+  const card = tourEls.card;
+  const vh = window.innerHeight;
+  const ch = card.offsetHeight || 170;
+  let top;
+  if (r.top > vh * 0.5) top = Math.max(12, r.top - 18 - ch);
+  else top = Math.min(vh - ch - 12, r.bottom + 18);
+  card.style.top = Math.round(top) + 'px';
+}
+
+function tourRender() {
+  const item = tourItems[tourStep];
+  if (!item || !tourEls) return;
+  tourEls.title.textContent = item.title;
+  tourEls.body.textContent = item.body;
+  tourEls.dots.innerHTML = tourItems.map((_, i) => '<i class="' + (i === tourStep ? 'on' : '') + '"></i>').join('');
+  tourEls.next.textContent = tourStep === tourItems.length - 1 ? 'Got it' : 'Next';
+  try { item.el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+  tourPlace();
+  setTimeout(tourPlace, 380);
+}
+
+function tourClose() {
+  tourMarkSeen();
+  tourStartAt = 0;
+  if (tourEls && tourEls.root) tourEls.root.remove();
+  tourEls = null;
+  tourItems = [];
+  document.removeEventListener('keydown', tourKeys);
+  window.removeEventListener('scroll', tourPlace, true);
+  window.removeEventListener('resize', tourPlace);
+}
+
+function tourKeys(e) {
+  if (e.key === 'Escape') { e.preventDefault(); tourClose(); return; }
+  if (e.key === 'Tab' && tourEls) {   // 焦点锁在卡片内
+    e.preventDefault();
+    (e.shiftKey ? tourEls.skip : tourEls.next).focus();
+  }
+}
+
+let tourStartAt = 0;
+
+const tourSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function startTour() {
+  if (tourEls || tourSeen()) return;
+  if (!tourStartAt) tourStartAt = Date.now();
+  // 等站点信息（公告栏）就绪，再做步骤收集
+  try { await Promise.race([siteInfoReady, tourSleep(1500)]); } catch (_) { /* 忽略 */ }
+  // 等物品板异步渲染完成（最多再等 2.5 秒）
+  while (!document.querySelector('#board') && Date.now() - tourStartAt < 2500) await tourSleep(150);
+  tourItems = tourSteps();
+  if (tourItems.length < 2) return;
+  tourStep = 0;
+
+  const root = document.createElement('div');
+  root.className = 'tour';
+  root.innerHTML =
+    '<div class="tour-dim d-top" aria-hidden="true"></div>' +
+    '<div class="tour-dim d-bottom" aria-hidden="true"></div>' +
+    '<div class="tour-dim d-left" aria-hidden="true"></div>' +
+    '<div class="tour-dim d-right" aria-hidden="true"></div>' +
+    '<div class="tour-hole" aria-hidden="true"></div>' +
+    '<div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle" tabindex="-1">' +
+      '<div class="tour-dots" aria-hidden="true"></div>' +
+      '<h2 id="tourTitle"></h2>' +
+      '<p></p>' +
+      '<div class="tour-actions">' +
+        '<button type="button" class="tour-skip">Skip</button>' +
+        '<button type="button" class="tour-next">Next</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(root);
+
+  tourEls = {
+    root: root,
+    hole: root.querySelector('.tour-hole'),
+    dims: {
+      top: root.querySelector('.d-top'), bottom: root.querySelector('.d-bottom'),
+      left: root.querySelector('.d-left'), right: root.querySelector('.d-right')
+    },
+    card: root.querySelector('.tour-card'),
+    title: root.querySelector('h2'),
+    body: root.querySelector('p'),
+    dots: root.querySelector('.tour-dots'),
+    next: root.querySelector('.tour-next'),
+    skip: root.querySelector('.tour-skip')
+  };
+  tourEls.skip.addEventListener('click', tourClose);
+  tourEls.next.addEventListener('click', () => {
+    if (tourStep >= tourItems.length - 1) { tourClose(); return; }
+    tourStep += 1;
+    tourRender();
+  });
+
+  document.addEventListener('keydown', tourKeys);
+  window.addEventListener('scroll', tourPlace, true);
+  window.addEventListener('resize', tourPlace);
+  tourRender();
+  try { tourEls.card.focus({ preventScroll: true }); } catch (_) { /* 老 WebKit */ }
+
+  try { tourItems[0].el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+  setTimeout(tourPlace, 380);
+}
+
+function scheduleTour() {
+  if (tourSeen() || tourEls || tourTimer) return;
+  tourTimer = setTimeout(() => { tourTimer = null; startTour(); }, 450);
+}
+
+// —— 启动（v2.6.0：移到文件末尾，避免引导模块的 const 处于 TDZ）——
 applyStaticTexts();
 router();
 flushQueue();
