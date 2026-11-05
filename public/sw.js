@@ -1,6 +1,6 @@
-﻿// public/sw.js —— 部署后必须立即拿到新代码：代码类资源网络优先、离线回退缓存；字体/图标等不变资源走缓存
-const CACHE = 'lf-v9';   // v2.4.0：初始 67 分 + 月度额度按「获得」计算，缓存升版
-const SHELL = ['/', '/css/tokens.css', '/css/fonts.css', '/css/app.css', '/js/app.js', '/js/idb.js', '/js/canvas-image.js', '/js/i18n-inline.js', '/kiosk', '/css/kiosk.css', '/js/kiosk.js', '/js/vendor/jsQR.js', '/js/vendor/qrcode.js'];
+// public/sw.js —— 部署后必须立即拿到新代码：代码类资源网络优先、离线回退缓存；字体/图标等不变资源走缓存
+const CACHE = 'lf-v10';   // v2.6.0：落地页与主站视觉重构，缓存升版
+const SHELL = ['/', '/css/tokens.css', '/css/fonts.css', '/css/app.css', '/css/redesign.css', '/js/app.js', '/js/idb.js', '/js/canvas-image.js', '/js/i18n-inline.js', '/js/motion-3d.js', '/kiosk', '/css/kiosk.css', '/js/kiosk.js', '/js/vendor/jsQR.js', '/js/vendor/qrcode.js'];
 self.addEventListener('install', (e) => {
   self.skipWaiting();   // 新版 SW 立即接管，不等待旧页关闭
   // 预缓存做「尽力而为」：任一资源失败（含 30x 重定向）不影响 SW 安装

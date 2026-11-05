@@ -17,6 +17,10 @@
   --space-6: 24px; --space-8: 32px;
   --radius-card: 10px; --radius-btn: 8px; --radius-pill: 999px;
   --shadow-card: 0 6px 18px rgba(0, 40, 90, .08);
+  --shadow-lift: 0 20px 50px rgba(0, 40, 90, .16);
+  --shadow-rack: 0 38px 70px rgba(0, 20, 50, .34);
+  --color-deep: #003264; --color-rack: #D7E7F5; --color-rack-edge: #8FAEC8;
+  --color-rack-back: #B8D0E4; --color-rack-ink: #123A5E; --color-shine: #FFFFFF;
   --focus-ring: 0 0 0 3px rgba(0, 80, 159, .35);
 }
 @media (prefers-color-scheme: dark) { /* 手机端夜间微调：仅降低对比面，色相不变（§10 深色配方） */
