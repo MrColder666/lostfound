@@ -212,7 +212,7 @@ public/
   icons/                    全尺寸 App Icon / maskable / monochrome / favicon
   ops/labels.html           A4 格位标签打印页
   ops/signage.html          A5 引导牌打印页（二维码指向 /r）
-  sw.js                     Service Worker（lf-v9）
+  sw.js                     Service Worker（lf-v15）
   manifest.webmanifest      PWA 清单
 schema.sql / seed.sql       初始化
 migrations/                 线上增量迁移
@@ -817,12 +817,12 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 ```
 <body>
   <nav class="gnav">            ← 仅 ≥1024px 显示：左侧固定 84px 竖栏
-    L&F 徽标 / Board / Report / Rewards（内联 SVG 线性图标）
+    校徽 / Board / Report / Rewards / Idea（内联 SVG 线性图标；Idea 钉在最底部）
   </nav>
   <div class="shell">           ← ≥1024px 时 margin-left:84px
-    <header class="topbar">     ← <1024px 显示：L&F 小标 + 右侧 Shop 胶囊
+    <header class="topbar">     ← <1024px 显示：L&F 小标 + 右侧 Idea 圆钮 + Shop 胶囊
     <main id="view"></main>     ← 所有路由内容渲染在这里
-    <footer class="site-foot">  ← 校名署名 + 三个页脚链接 + 技术署名小字
+    <footer class="site-foot">  ← 校名署名 + 三个页脚链接
   </div>
   <nav class="tabbar">          ← <1024px 显示：Board / ＋Report（中央凸起）/ Shop
   <script type="module" src="/js/app.js">
@@ -833,6 +833,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 - **校徽即回家入口（v2.6.0）**：桌面 `a.gnav-logo[href="#/"]`、手机 `a.logo`。点击时若不在首页 → 回 `#/`；已在首页 → 平滑滚回顶部。
 - 底部 tabbar 中央 Report 按钮（v2.6.0）：**只显示「＋」**（54px 圆形），文案 `Report` 放在 `.fab-tip` 气泡里，默认隐形；`@media (hover:hover) and (pointer:fine)` 下悬停 **1 秒**淡入于按钮上方，移开即消失；`hover:none` 设备不显示气泡，无障碍靠 `aria-label="Report"`。
 - 正文使用 `<h1>` 语义：首页 hero、登记/商城/详情页各自有 page-title，后台标题。
+- **「加建议」入口（v2.6.4）**：桌面 `.gnav-idea`（侧栏最底部，`margin-top:auto` 钉底，悬停/`focus-visible` 浮出 `.idea-tip` 气泡）；手机 `.idea-chip`（顶栏 `#shopChip` 左侧 40px 圆钮，`hover:hover` 才有描边反馈）。两者均为 `<a target="_blank" rel="noopener noreferrer">`，指向 `https://github.com/MrColder666/lostfound/issues/new`，预填 `[Idea]` 标题与三段正文模板。仓库为公开仓库、Issues 已开启。
 
 ### 7.2 路由（hash 路由，无需服务端支持）
 
@@ -942,7 +943,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 ### 7.9 PWA 与 Service Worker
 
 - **manifest**：`id:"/"`、name/short_name、description、`start_url:"/"`、`scope:"/"`、`display:"standalone"` + `display_override:["standalone","minimal-ui"]`、背景 `#F2F6FB`、主题 `#005EBB`、`lang:"en"`、`orientation:"any"`、categories、icons（16–512 + maskable192/512 + monochrome）、shortcuts（Report / Shop 两个，带 96px 图标）。
-- **SW**：缓存名 `lf-v11`；安装时 `skipWaiting()` + 尽力预缓存 SHELL（任一失败不阻断，`c.add(u).catch(()=>null)`）；激活时删旧缓存 + `clients.claim()`；fetch 策略：
+- **SW**：缓存名 `lf-v15`；安装时 `skipWaiting()` + 尽力预缓存 SHELL（任一失败不阻断，`c.add(u).catch(()=>null)`）；激活时删旧缓存 + `clients.claim()`；fetch 策略：
   - `/api/*` 直接放行（不缓存个人数据）；
   - `woff2/png/jpg/jpeg/svg/ico` → 缓存优先；
   - 其它（HTML/JS/CSS）→ **网络优先，成功则回写缓存，失败回退缓存**。
@@ -950,7 +951,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 
 ### 7.10 响应式与无障碍基线
 
-- 断点：320 / 375 / 414 / 768 / 1024 / 1194 / 1366；**任何宽度不得出现横向滚动**（`overflow-x: clip`）。
+- 断点：320 / 375 / 414 / 768 / 1024 / 1194 / 1366；**任何宽度不得出现横向滚动**（`.shell` 上 `overflow-x: clip`）。
 - ≥1024：隐藏 bottom tabbar，显示左侧 gnav；`#view` 最大宽 1160 居中。
 - 触控目标 ≥44px；页脚链接在移动/桌面都要放大点击区。
 - 每个视图一个 `<h1>`；状态用 `aria-pressed`、弹层用原生 `<dialog>`；focus-visible 有 3px 焦点环。
@@ -1300,7 +1301,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 4. 入场动画禁用 `animation-fill-mode: both` 的“尾帧 transform:none”写法会压住 hover；用 `backwards`（或做完把类摘掉）。
 5. `.will-reveal` 必须在动画结束后移除，否则同样压住 hover；兜底定时器也要走 `reveal()`。
 6. Kiosk 每个按钮都要显式绑事件（`#repTo3` 曾是从未绑定的死按钮）。
-7. 改 `public/` 静态资源必须 bump SW `CACHE`（当前 `lf-v9`）；虽然 fetch 是网络优先，但离线/旧客户端仍靠缓存。
+7. 改 `public/` 静态资源必须 bump SW `CACHE`（当前 `lf-v15`）；虽然 fetch 是网络优先，但离线/旧客户端仍靠缓存。
 8. 照片一律走 `putPhoto/readPhoto`，**不要再直接 `env.PHOTOS.put`**（R2 未启用时会静默丢图）。
 9. 删大段 JS 前先 grep 区间内的函数调用（曾把 `paintQr()` 一起删掉 → 控制台报 `paintQr is not defined`）。
 10. 「代码里引用了 id」≠「页面上有这个元素」——商城曾从 `#s_pin` 取值但模板从未渲染它。
@@ -1414,5 +1415,5 @@ POST /api/admin/webauthn/login-options      POST /api/admin/webauthn/login
 - [ ] Kiosk 六态 + 无照片路径 + 物品名/地点 Other + 二维码 + 无动效
 - [ ] 后台六 Tab + 学生库（导入/导出/批量/受保护删除）+ 订单闭环 + 2FA + 审计
 - [ ] 深色模式 6 个 token 覆盖、品牌实底文字用 `--color-on-brand`
-- [ ] SW `lf-v9` 策略正确（API 直通、图片缓存优先、其余网络优先）
+- [ ] SW `lf-v15` 策略正确（API 直通、图片缓存优先、其余网络优先）
 - [ ] `node --test --experimental-test-isolation=none tests/*.test.js` → 106 pass

@@ -1,7 +1,7 @@
 # AGENTS.md — L&F 校园失物招领系统
 
 > 面向后续接手这个仓库的 AI agent / 开发者。**改任何东西前先读完 §6 已知坑。**
-> 最后更新：2026-11-04 · 版本 v2.5.0
+> 最后更新：2026-11-05 · 版本 v2.6.4
 
 ---
 
@@ -18,7 +18,7 @@
 - **线上**：https://lostnfound.ominx.dpdns.org （旧域名 `lf.xiaochangblog.dpdns.org` 仍可用；`workers.dev` 国内不可达）
 - **仓库**：本地 `D:\lostfound-work`，git 分支 `main`，远端 `MrColder666/lostfound`
 - **技术栈**：Cloudflare Workers + D1(SQLite) + 静态资产（`public/`）；原生 HTML/CSS/JS，**无构建步骤、无框架、无 npm 运行时依赖**
-- **PWA**：manifest + Service Worker（`lf-v11`）+ IndexedDB 离线队列
+- **PWA**：manifest + Service Worker（`lf-v15`）+ IndexedDB 离线队列
 
 ---
 
@@ -70,7 +70,7 @@ public/
   icons/                 全尺寸 App Icon / maskable / maskable / favicon
   sw.js                  Service Worker（网络优先 + 缓存兜底）
 schema.sql / seed.sql    本地初始化；migrations/ 放线上迁移
-tests/                   node:test 用例（101 个）
+tests/                   node:test 用例（111 个）
 ```
 
 ---
@@ -123,7 +123,7 @@ tests/                   node:test 用例（101 个）
 4. **入场动画禁用 `animation-fill-mode: both`**：尾帧 `transform:none` 会永久压住 `:hover` 位移（v2.1 已改成 `backwards`）。
 5. **`.will-reveal` 类必须在动画结束后摘除**，否则它同样压住 hover；兜底定时器也要走 `reveal()` 而不是只加 `is-in`。
 6. **Kiosk 的每个按钮都要有显式监听**：`#repTo3`（登记第 2 步 Next）从 v1.7.x 起就没绑事件，一直是死按钮。
-7. **Service Worker 是 cache-first**：改了 `public/` 下的静态资源必须升 `sw.js` 的 `CACHE`（当前 `lf-v11`），否则老用户会长期拿到旧 CSS/JS。升版后旧缓存会在 activate 阶段清掉。
+7. **Service Worker 是 cache-first**：改了 `public/` 下的静态资源必须升 `sw.js` 的 `CACHE`（当前 `lf-v15`），否则老用户会长期拿到旧 CSS/JS。升版后旧缓存会在 activate 阶段清掉。
 8. **照片链路（v2.2.0 已修）**：账户**没有启用 R2**，`env.PHOTOS` 一直是 `undefined`，所以历史上 `env.PHOTOS?.put()` 静默跳过 → 上传 200 但照片 404（用户说的「图片上传不了」）。现在统一走 `src/lib/photo.js`：`putPhoto()` 优先写 R2，未启用就落 D1 的 `photos` 表（BLOB，单张 ≤1.1MB）；`getPhoto()` 两条路都读。**新增照片写入/读取不要再直接碰 `env.PHOTOS`。** 迁移：`migrations/2026-10-26-v2.2.0-photos.sql`。演示图仍是静态 `/img/items/*.jpg`，`photoSrc()` 区分 `/` 开头与相对路径。
 9. **删大段 JS 时先 grep 区间内的函数调用**：清理 Kiosk 空闲屏时把 `paintQr()`（扫码进手机版）一起删了 → 控制台 `paintQr is not defined`、二维码空白。删完必须跑一遍页面控制台检查。
 10. **「代码里引用了 id」≠「页面上有这个元素」**：商城曾从 `#s_pin` 读 PIN，但模板里从未渲染它 → 兑换静默失败。改前端交互前，先确认元素真的被渲染（v2.3.0 修复）。
@@ -142,7 +142,7 @@ tests/                   node:test 用例（101 个）
 ## 7. 测试与验收
 
 ```bash
-node --test --experimental-test-isolation=none tests/*.test.js   # 基线：101 pass / 0 fail
+node --test --experimental-test-isolation=none tests/*.test.js   # 基线：111 pass / 0 fail
 ```
 
 必须带 `--experimental-test-isolation=none`：默认派生模式在部分环境会「假绿灯」。
@@ -161,7 +161,7 @@ node --test --experimental-test-isolation=none tests/*.test.js   # 基线：101 
 ## 8. 版本与文档协议
 
 - **每次改动必须 bump 版本**：`package.json` 的 `version` + `CHANGELOG.md` 追加条目（Keep a Changelog 风格，中文）
-- 当前版本 **2.5.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
+- 当前版本 **2.6.4**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
 - 线上验证：`curl https://lostnfound.ominx.dpdns.org/api/stats` 应返回 `{"ok":true,...}`
 - 有 DB 变更时记得两处：本地 `--local --file=schema.sql`，线上 `--remote --file=migrations/<日期>-v<版本>-<主题>.sql`
 

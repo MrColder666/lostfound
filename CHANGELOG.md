@@ -2,6 +2,13 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v2.6.4] - 2026-11-05
+
+### 新增
+- **「加建议」入口**：桌面侧栏最底部 `Idea`（💡，`margin-top:auto` 钉底，悬停/键盘聚焦浮出右侧气泡）；手机顶栏 Shop 胶囊左侧 40px 圆形按钮（`aria-label="Suggest an idea on GitHub"`）。两者均新标签打开 `https://github.com/MrColder666/lostfound/issues/new`，预填 `[Idea]` 标题与「想看到什么 / 哪个页面与设备 / 其他」三段模板，并带 `rel="noopener noreferrer"`。
+- 文案进 i18n（`idea_label` / `idea_tip`）；新增 `tests/idea-entry.test.js` 4 条回归，测试基线 107 → 111。
+- Service Worker 缓存升 `lf-v15`；`package.json` → 2.6.4。
+
 ## [v2.6.3] - 2026-11-05
 
 ### 修复

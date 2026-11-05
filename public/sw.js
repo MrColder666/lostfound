@@ -1,5 +1,5 @@
 ﻿// public/sw.js —— 部署后必须立即拿到新代码：代码类资源网络优先、离线回退缓存；字体/图标等不变资源走缓存
-const CACHE = 'lf-v14';  // v2.6.3：桌面公告条挂进 .shell（修复被挤进 84px 侧栏）
+const CACHE = 'lf-v15';  // v2.6.4：新增「加建议」入口（GitHub issue）
 const SHELL = ['/', '/css/tokens.css', '/css/fonts.css', '/css/app.css', '/js/app.js', '/js/idb.js', '/js/canvas-image.js', '/js/i18n-inline.js', '/kiosk', '/css/kiosk.css', '/js/kiosk.js', '/js/vendor/jsQR.js', '/js/vendor/qrcode.js'];
 self.addEventListener('install', (e) => {
   self.skipWaiting();   // 新版 SW 立即接管，不等待旧页关闭

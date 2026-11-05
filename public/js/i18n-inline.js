@@ -225,6 +225,8 @@ const EN = {
 
   // —— 主站导航与首页 ——
   gnav_board: 'Board', gnav_report: 'Report',
+  idea_label: 'Idea',
+  idea_tip: 'Suggest an idea on GitHub',
   hero_kicker: 'Campus lost and found',
   hero_title: 'Lost something? It may already be at the desk.',
   hero_sub: 'Anything handed in on campus gets a locker number and shows up here. Find your item, claim it, and pick it up at the desk.',
