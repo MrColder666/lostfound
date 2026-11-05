@@ -2,6 +2,12 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v2.6.3] - 2026-11-05
+
+### 修复
+- **桌面端（≥1024px）公告条被挤进左侧 84px 侧栏**：v2.6.1 把 `body` 改成 `grid(84px 1fr)` 后，`app.js` 仍把公告条 `document.body.prepend(...)`，流内元素被自动放进第 1 列 → 每个词换行的竖条压在侧栏上。改为统一走 `mountTopBanner()`：插进 `.shell`（内容列，全宽），无 `.shell` 时回退 body；微信提示条同样受益。移动/平板（body 仍是 block）行为不变。
+- Service Worker 缓存升 `lf-v14`；`package.json` → 2.6.3。
+
 ## [v2.6.2] - 2026-11-05
 
 ### 修复

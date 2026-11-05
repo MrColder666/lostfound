@@ -135,6 +135,7 @@ tests/                   node:test 用例（101 个）
 16. **`secret put` 的非交互提示**（"There doesn't seem to be a Worker…"）不是报错。
 17. **月度额度别用净流水算**：曾用 `SUM(delta) WHERE month_key=?` 当「本月已获得」，导致兑换一次就把额度"赚回来"，与「每月最多获得 100」不符。必须走 `monthlyEarned()`（只算 `claim_reward` + `tip_in` 且 `delta>0`）。
 18. **新增「每人一笔」类流水会牵连删除逻辑**：初始 67 分曾让 `STUDENT_REFS` 的 ledger 计数永远 >0 → 任何学生都删不掉。规则：这类系统流水要么从引用计数里排除（`reason <> 'initial'`），要么随主体一起删除。
+19. **桌面 `body` 是 grid（84px + 1fr），不要在 body 上 prepend 流内元素**：v2.6.1 起侧栏改用 `grid + sticky`；公告条/微信提示曾用 `document.body.prepend`，结果被塞进 84px 侧栏列挤成竖条。统一走 `mountTopBanner()`（插进 `.shell`）；`position: fixed` 的 toast/tour 不受影响。
 
 ---
 

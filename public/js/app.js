@@ -42,6 +42,14 @@ document.querySelectorAll('[data-route]').forEach((b) => {
   if (b.tagName !== 'A') b.addEventListener('click', () => { location.hash = b.dataset.route; });
 });
 
+// 顶部横幅（公告 / 微信提示）必须挂进 .shell，不能直接挂 body：
+// v2.6.1 起桌面 body 是 grid(84px 1fr)，body 级 prepend 的流内元素会被塞进 84px 侧栏列。
+function mountTopBanner(el) {
+  const shell = document.querySelector('.shell');
+  if (shell) shell.prepend(el);
+  else document.body.prepend(el);
+}
+
 // 微信内置浏览器提示（防封的正面做法：引导在系统浏览器打开，不做暗跳转）
 (function wechatBanner() {
   try {
@@ -54,7 +62,7 @@ document.querySelectorAll('[data-route]').forEach((b) => {
       sessionStorage.setItem('lf_wx_hint', '1');
       bar.remove();
     });
-    document.body.prepend(bar);
+    mountTopBanner(bar);
   } catch { /* 提示失败不影响主流程 */ }
 })();
 
@@ -67,7 +75,7 @@ const siteInfoReady = (async () => {
       const bar = document.createElement('div');
       bar.className = 'notice-bar';
       bar.textContent = b.notice;
-      document.body.prepend(bar);
+      mountTopBanner(bar);
     }
   } catch { /* 公告失败不影响主流程 */ }
 })().catch(() => {});
