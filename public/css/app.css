@@ -47,7 +47,9 @@ body { font-family: var(--font-ui); background: var(--color-paper); color: var(-
 .tabbar .fab { width: auto; min-width: 48px; height: 48px; padding: 0 16px; border-radius: var(--radius-pill);
                background: var(--color-accent); color: var(--color-on-brand); margin-top: -18px;
                border: 3px solid var(--color-paper); font: 800 13px/1 var(--font-ui);
-               display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+               display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
+               gap: 5px; }
+.tabbar .fab .fab-plus { font: 900 16px/1 var(--font-ui); display: inline-block; transform: translateY(-.5px); }
 .tabbar > button:not(.fab) { background: transparent; border: 0; color: var(--color-ink); font: 600 12px var(--font-ui); }
 /* 大屏适配（§9.3）：≥768 双列；≥1024 网格三列 + 侧栏 */
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
@@ -441,7 +443,6 @@ input.visually-hidden { padding: 0; margin: -1px; border: 0; min-width: 0; min-h
   .site-foot .foot-links a { padding: 0 6px; }
 }
 .site-foot a:hover { text-decoration: underline; }
-.site-foot .mono-tiny { font: 600 10.5px var(--font-mono); letter-spacing: .1em; color: var(--color-muted); opacity: .8; }
 
 /* 入场动画（v1.7.3 纪律：只做位移，不做透明度） */
 @media (prefers-reduced-motion: no-preference) {
@@ -459,3 +460,9 @@ input.visually-hidden { padding: 0; margin: -1px; border: 0; min-width: 0; min-h
   .grid > .item-card:nth-child(6) { animation-delay: .2s; }
 }
 @keyframes lf-rise { from { transform: translateY(10px); } to { transform: none; } }
+
+/* —— v2.5.1：站点标志使用学校校徽（SMIC crest）—— */
+.gnav-logo { display: grid; place-items: center; }
+.gnav-logo img { width: 44px; height: 44px; background: #fff; border-radius: 50%; padding: 3px; display: block; }
+.topbar .logo { display: inline-flex; align-items: center; gap: 8px; }
+.topbar .logo img { width: 30px; height: 30px; display: block; border-radius: 50%; background: #fff; }

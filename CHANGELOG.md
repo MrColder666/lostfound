@@ -2,6 +2,15 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v2.5.1] - 2026-11-05
+
+### 变更（品牌与正式化）
+- **站点图标全部替换为学校校徽**（SMIC crest，源：https://www.smicschool.com/wp-content/uploads/2021/12/logo-dark@1x.png）：favicon.ico（16/32/48）、icons 16–512 全套、apple-touch-icon-180、maskable-192/512、monochrome，以及三端标志位（手机端侧栏/顶栏、Kiosk 圆标、后台标题）。
+- **移除页脚右下角技术署名**（`CLOUDFLARE WORKERS · D1 · PWA`）及对应样式与文案键 —— 面向正式使用，不暴露实现细节。
+- 保留功能性图标（导航的 Board / Report / Rewards 线性图标）——它们承担交互语义，不随品牌标志替换。
+- **手机端底部 Report 按钮恢复「＋」号**（改为独立装饰 span，避免被文案覆盖；桌面侧栏不变）。
+- Service Worker 缓存升 `lf-v10`；`package.json` → 2.5.1。
+
 ## [v2.5.0] - 2026-11-04
 
 ### 新增（文档）

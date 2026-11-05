@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="/css/tokens.css"><link rel="stylesheet" href="/css/fonts.css"><link rel="stylesheet" href="/css/app.css">
 </head><body>
 <nav class="gnav" aria-label="Primary">
-  <div class="gnav-logo">L&amp;F</div>
+  <div class="gnav-logo"><img src="/icons/smic-logo.png" alt="SMIC Private School"></div>
   <a class="gnav-item" data-route="#/" href="#/">
     <span class="gnav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg></span>
     <span data-i18n="gnav_board">Board</span></a>
@@ -27,7 +27,7 @@
 </nav>
 <div class="shell">
   <header class="topbar">
-    <a class="logo" href="#/">L&amp;F <small data-i18n="brand_sub">Lost &amp; Found</small></a>
+    <a class="logo" href="#/"><img src="/icons/smic-logo.png" alt=""><small data-i18n="brand_sub">Lost &amp; Found</small></a>
     <span class="spacer"></span>
     <a id="shopChip" href="#/shop" data-i18n="shop_chip">Shop</a>
   </header>
@@ -39,12 +39,11 @@
       <a href="#/report" data-i18n="gnav_report">Report</a>
       <a href="#/shop" data-i18n="shop_chip">Shop</a>
     </div>
-    <span class="mono-tiny">CLOUDFLARE WORKERS · D1 · PWA</span>
   </footer>
 </div>
 <nav class="tabbar">
   <button data-route="#/" data-i18n="tab_home" type="button">Board</button>
-  <button class="fab" data-route="#/report" data-i18n="tab_report" type="button">＋ Report</button>
+  <button class="fab" data-route="#/report" type="button"><span class="fab-plus" aria-hidden="true">＋</span><span data-i18n="tab_report">Report</span></button>
   <button data-route="#/shop" data-i18n="shop_chip" type="button">Shop</button>
 </nav>
 <script type="module" src="/js/app.js"></script>

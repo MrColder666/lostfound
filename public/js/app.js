@@ -144,7 +144,8 @@ function runCount(el) {
     if (p < 1) requestAnimationFrame(tick);
     else el.textContent = target + suffix;
   };
-  el.textContent = '0' + suffix;
+  // v2.5.1：不要在这里先把文案清成 0 —— 若 rAF 被节流（后台页/低电量/内嵌浏览器），
+  // 数字会永久停在 0。让第一帧 tick 自己从 0 开始；rAF 不跑时保留服务端渲染的真实值。
   requestAnimationFrame(tick);
 }
 

@@ -269,6 +269,5 @@ const EN = {
   reunited_empty: 'Nothing has been returned yet.',
   reunited_in_hours: 'back in {n} h',
   reunited_in_days: 'back in {n} d',
-  footer_tag: 'Campus Lost and Found',
-  footer_built: 'Cloudflare Workers · D1 · PWA'
+  footer_tag: 'Campus Lost and Found'
 };

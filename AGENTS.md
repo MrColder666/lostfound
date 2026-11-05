@@ -100,6 +100,7 @@ tests/                   node:test 用例（101 个）
 - **路由**：hash 路由 `#/` / `#/report` / `#/claim/:id` / `#/shop`；`#/points` 自动跳 `#/shop`
 - **文案**：一律走 `t('key')`，词典在 `public/js/i18n-inline.js`；**禁止硬编码中文**，新增 key 必须同时用于 `data-i18n`
 - **颜色/字体**：只允许 `var(--*)`，禁止内联 hex（token 在 `tokens.css`）
+- **品牌标志**：站点图标与三端标志统一使用学校校徽（`/icons/smic-logo.png`，由 `favicon.ico`/`apple-touch`/maskable 全套生成）；功能导航图标（Board/Report/Rewards SVG）不替换。页脚不出现技术实现署名。
 - **动效纪律**（v2.1 起）：
   - 只动 `transform` / `opacity`，时长 150–420ms，用 `--ease-out`
   - 按压反馈用 `:active` 缩放（`.btn:active { scale(.97) }`）

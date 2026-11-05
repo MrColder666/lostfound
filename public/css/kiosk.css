@@ -210,3 +210,7 @@ body.k-body {
 .k-qr-txt b { font: 700 14px var(--font-ui); color: var(--color-on-brand); }
 .k-qr-txt small { font: 400 12px var(--font-ui); opacity: .7; }
 .k-thanks { margin-top: 14px; }
+
+/* v2.5.1：校徽标志（深底上也清晰：白圆底 + 校徽） */
+.k-logo { background: var(--color-on-brand); display: grid; place-items: center; overflow: hidden; }
+.k-logo img { width: 86%; height: 86%; object-fit: contain; display: block; }

@@ -829,6 +829,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 ```
 
 - head 必须包含：`theme-color #005EBB`、`description`、manifest、favicon 全套（16/32/48 + apple-touch-icon 180）、`apple-mobile-web-app-title`。
+- 品牌位：gnav 顶部与 topbar 左侧显示**校徽**（`/icons/smic-logo.png`，白底圆形衬底）；底部 tabbar 中央 Report 按钮带「＋」（装饰性 span，不参与 i18n 替换）。
 - 正文使用 `<h1>` 语义：首页 hero、登记/商城/详情页各自有 page-title，后台标题。
 
 ### 7.2 路由（hash 路由，无需服务端支持）
@@ -931,6 +932,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 4. 滚动进场：JS 给元素加 `.will-reveal` + `--reveal-delay`（阶梯 ≤8×55ms），IntersectionObserver（threshold 0.08，rootMargin 底部 -6%）触发 `.is-in`；**动画结束后必须移除 `.will-reveal/.is-in`**（否则压住 hover 位移）；兜底：1.6s 后强制 reveal。
 5. 数字 count-up：`[data-count]`，easeOutCubic 900ms；`prefers-reduced-motion` 直接显示终值；`dataset.counted=1` 防重复。
 6. 路由淡入：`#view.view-enter` 动画 420ms（remove → reflow → add）。
+6.1 count-up **不要在启动时先把数字清成 0**：若 rAF 被节流（后台页/低电量/内嵌浏览器），数字会永久停在 0；应由第一帧 tick 自行从 0 开始，rAF 不跑时保留服务端渲染的真实值。
 7. **入场 keyframes 只做位移，不做透明度**（`lf-rise` 从 `translateY(10px)` 开始）。原因：页面在 hidden/预渲染时 WebKit 暂停动画，`opacity:0` 起点会导致内容永久不可见。
 8. `prefers-reduced-motion: reduce` → 全部动画/过渡关闭，内容直接可见。
 9. Kiosk 一律不动效（性能与稳定性优先）。
@@ -1191,7 +1193,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 ### 10.7 图标与物料
 
 - 导航图标：**内联 SVG 线性图标**（24px 网格、1.8 描边、圆角端点、`currentColor`）：2×2 板格 / 加号方框 / 礼盒。不要用 Unicode 字符（渲染不稳定）。
-- App 图标：`icons/` 内 16–512 全套 PNG + maskable 192/512 + monochrome + `favicon.ico` + `icon-master.svg` 母版；manifest 引用见 §7.9。
+- 站点标志：**使用学校校徽（SMIC crest）**。母本 `public/icons/smic-logo.png`（160×160，源 `https://www.smicschool.com/wp-content/uploads/2021/12/logo-dark@1x.png`），由它生成 `icons/` 内 16–512 全套 PNG、maskable 192/512、monochrome、`apple-touch-icon-180` 与多尺寸 `favicon.ico`；手机端 gnav/topbar、Kiosk 圆标、后台标题均使用该校徽。功能导航图标（Board/Report/Rewards 线性 SVG）保持独立，不随品牌标志替换。
 - 打印物料：
   - `ops/labels.html`：A4 竖版，2 列 × 6 行 = 12 张格位标签（**这是 12 格柜的旧物料；当前格位数 24 时需调整行数/复制两张**）。每张：L&F 小标、超大两位编号、`LOST & FOUND SLOT`、底部一行使用说明；虚线裁切线。
   - `ops/signage.html`：A5 竖版亚克力立牌。深蓝渐变底、圆形白标、`Found something?` 主标题 + `Scan to register · 30 seconds · earn points`、白底二维码（指向 `/r`，可现场改 URL 重新生成）、三步说明、底部“Place next to the L&F drop-off cabinet”。
@@ -1222,7 +1224,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 | 认领 | `Verification` / `Answer the verification question *` / `Submit claim` / `Claim approved` / `The item is reserved for you. Collect it at the desk with your student ID and name.` / `Pick up by` |
 | PIN 提示 | `PIN (4 digits)` / `First time? Pick four digits you will remember. You enter this PIN whenever you claim or redeem something.` |
 | 商城 | `Rewards` / `Points you earn from returned items are spent here. Orders wait at the desk until staff hand the item over.` / `Balance` / `Returns` / `Check balance` / `Redeem` / `Sold out` / `left` / `Check your balance first to unlock redeeming.` / `Enter your 4-digit PIN to redeem. First time? It becomes your PIN.` / `My orders` / `Order created` 票券 |
-| 页脚 | `Campus Lost and Found` / `Cloudflare Workers · D1 · PWA` |
+| 页脚 | `Campus Lost and Found`（**技术署名行已移除，正式使用不暴露实现细节**） |
 | Kiosk 空闲 | `Lost and Found · Service Desk` / `I found something` / `Report it here. Takes about a minute.` / `I lost something` / `Search the board and claim your item.` / `Already approved? Collect it with your student ID and PIN →` / `Open the board on your phone` / `Scan the code. No app needed.` |
 | Kiosk 完成 | `Checked in. Thank you.` / `The item is on the board now. Points are credited once it is claimed and picked up.` / `Handed over. Enjoy.` |
 | 后台门屏 | `Enter admin passphrase` / `STAFF CONSOLE` / `Sign out` |
