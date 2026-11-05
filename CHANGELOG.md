@@ -2,6 +2,12 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v2.6.1] - 2026-11-05
+
+### 修复
+- **Safari 桌面端侧栏左侧多出一条蓝边**：`position: fixed` 的侧栏在根元素裁切（`overflow-x: hidden/clip`）时会被 Safari 错位几像素，导致导航图标与左边缘之间出现缝隙 → 桌面布局改为 **body grid（84px + 1fr）+ `position: sticky` 侧栏**，彻底不依赖 fixed；横向裁切下移到内容层 `.shell`（`overflow-x: clip`），根元素不再裁切。
+- Service Worker 缓存升 `lf-v12`；`package.json` → 2.6.1。
+
 ## [v2.6.0] - 2026-11-05
 
 ### 新增

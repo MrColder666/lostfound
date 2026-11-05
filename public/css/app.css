@@ -1,5 +1,7 @@
 * { box-sizing: border-box; margin: 0; }
-html, body { overflow-x: hidden; }                /* 防横向滚动（断点纪律）；注意：clip 会让 iOS WebKit 整页无法滚动 */
+html, body { min-height: 100%; }
+/* 横向裁切只作用于内容层：放在 html/body 上会让 iOS 无法滚动、Safari 错位 fixed 元素 */
+.shell { overflow-x: clip; }
 body { font-family: var(--font-ui); background: var(--color-paper); color: var(--color-ink);
        font-size: 15px; line-height: 1.5; padding-bottom: 76px; }  /* 底部 Tab 高度预留 */
 .card { background: var(--color-surface); border: 1px solid var(--color-rule);
@@ -106,8 +108,9 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 /* —— v1.1 落地页：学校 Canvas 门户同源（左侧全局导航 + hero + How it works）—— */
 .gnav { display: none; }
 @media (min-width: 1024px) {
-  .gnav { display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; width: 84px;
-    background: var(--color-bar); z-index: 20; }
+  body { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: start; }
+  .gnav { display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; width: 84px;
+    grid-column: 1; background: var(--color-bar); z-index: 20; }
   .gnav-logo { height: 64px; background: var(--color-navy); color: var(--color-on-brand);
     font: 900 15px/64px var(--font-ui); text-align: center; letter-spacing: .5px; }
   .gnav-item { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 4px;
@@ -117,7 +120,7 @@ dl.detail-list dd { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
   .gnav-item:hover { opacity: 1; background: rgba(255,255,255,.08); }
   .gnav-item[aria-pressed="true"] { opacity: 1; background: var(--color-navy); box-shadow: inset 3px 0 0 var(--color-cyan); }
   .gnav-foot { margin-top: auto; padding: 12px 8px; text-align: center; }
-  .shell { margin-left: 84px; }
+  .shell { grid-column: 2; margin-left: 0; min-width: 0; }
   .topbar { display: none; }
 }
 
