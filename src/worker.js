@@ -5,6 +5,7 @@ import { fulfill, lookupClaims } from './api/kiosk.js';
 import { claims, settleFreeze } from './api/claims.js';
 import { pointsQuery, tip, redeem } from './api/points.js';
 import { admin } from './api/admin.js';
+import { submitIdea } from './api/ideas.js';
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -28,6 +29,7 @@ export default {
       if (m === 'GET'  && seg[1] === 'photos' && seg.length > 2) return getPhoto(db, env, request, seg.slice(2));
       if (m === 'POST' && url.pathname === '/api/tips') return tip(db, env, request);
       if (m === 'POST' && url.pathname === '/api/redemptions') return redeem(db, env, request);
+      if (m === 'POST' && url.pathname === '/api/ideas') return submitIdea(db, env, request);
       if (seg[1] === 'admin') return admin(db, env, request, request.headers.get('X-Admin-Token'));
       return Response.json({ ok: false, error: 'NOT_FOUND' }, { status: 404 });
     } catch (e) {

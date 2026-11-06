@@ -133,6 +133,34 @@ export async function admin(db, env, req, token) {
     await audit('flag_resolve', `flag:${id}`);
     return json({ ok: true });
   }
+  // —— 建议箱（v2.7.0）——
+  if (req.method === 'GET' && url.pathname === '/api/admin/ideas') {
+    const status = (url.searchParams.get('status') || 'all').trim();
+    const where = status === 'new' || status === 'seen' ? 'WHERE status=?' : '';
+    const rows = await db.prepare(`SELECT id, message, page, contact, status, created_at FROM ideas ${where} ORDER BY id DESC LIMIT 300`)
+      .bind(...(where ? [status] : [])).all();
+    const counts = await db.prepare('SELECT status, COUNT(*) n FROM ideas GROUP BY status').all();
+    const byStatus = Object.fromEntries(counts.results.map((r) => [r.status, Number(r.n)]));
+    return json({ ok: true, ideas: rows.results, counts: { new: byStatus.new || 0, seen: byStatus.seen || 0 } });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/admin/ideas/status') {
+    const b = await readBody();
+    const id = Number(b.id), status = String(b.status || '');
+    if (!Number.isInteger(id) || !['new', 'seen'].includes(status)) return json({ ok: false, error: 'BAD_FIELDS' }, 400);
+    const r = await db.prepare('UPDATE ideas SET status=? WHERE id=?').bind(status, id).run();
+    if (!r.meta.changes) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+    await audit('idea_status', `idea:${id}`, status);
+    return json({ ok: true });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/admin/ideas/delete') {
+    const b = await readBody();
+    const id = Number(b.id);
+    if (!Number.isInteger(id)) return json({ ok: false, error: 'BAD_FIELDS' }, 400);
+    const r = await db.prepare('DELETE FROM ideas WHERE id=?').bind(id).run();
+    if (!r.meta.changes) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+    await audit('idea_delete', `idea:${id}`);
+    return json({ ok: true });
+  }
   // —— 看板 ——
   if (req.method === 'GET' && url.pathname === '/api/admin/stats') {
     const week = await db.prepare(`SELECT

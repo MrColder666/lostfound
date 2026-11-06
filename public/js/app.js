@@ -83,6 +83,7 @@ const siteInfoReady = (async () => {
 // —— i18n ——
 function applyStaticTexts() {
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-ph]').forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
 }
 
 // —— 工具 ——
@@ -974,6 +975,64 @@ function scheduleTour() {
   if (tourSeen() || tourEls || tourTimer) return;
   tourTimer = setTimeout(() => { tourTimer = null; startTour(); }, 450);
 }
+
+// —— 建议箱（v2.7.0）：原生 <dialog> + 站内 POST /api/ideas ——
+const ideaDialog = document.getElementById('ideaDialog');
+const ideaForm = document.getElementById('ideaForm');
+const ideaMsg = document.getElementById('ideaMsg');
+const ideaSend = document.getElementById('ideaSend');
+const ideaText = document.getElementById('ideaText');
+let ideaReturnFocus = null;
+
+function ideaMsgShow(text, isErr) {
+  if (!ideaMsg) return;
+  ideaMsg.textContent = text;
+  ideaMsg.classList.toggle('err', !!isErr);
+}
+function ideaOpen(from) {
+  if (!ideaDialog || ideaDialog.open) return;
+  ideaReturnFocus = from || null;
+  ideaForm.reset();
+  ideaMsgShow('', false);
+  ideaSend.disabled = false;
+  ideaSend.textContent = t('idea_send');
+  try { ideaDialog.showModal(); } catch (_) { ideaDialog.setAttribute('open', ''); }
+  setTimeout(() => { try { ideaText.focus(); } catch (_) { /* 老 WebKit */ } }, 40);
+}
+function ideaClose() { if (ideaDialog && ideaDialog.open) ideaDialog.close(); }
+
+document.querySelectorAll('#ideaLink, #ideaChip').forEach((b) => b.addEventListener('click', () => ideaOpen(b)));
+document.getElementById('ideaClose')?.addEventListener('click', ideaClose);
+document.getElementById('ideaCancel')?.addEventListener('click', ideaClose);
+ideaDialog?.addEventListener('close', () => { try { ideaReturnFocus?.focus(); } catch (_) { /* 已移除 */ } });
+
+ideaForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (ideaSend.disabled) return;
+  const fd = new FormData(ideaForm);
+  const message = String(fd.get('message') || '').trim();
+  if (message.length < 5) { ideaMsgShow(t('idea_err_TOO_SHORT'), true); try { ideaText.focus(); } catch (_) {} return; }
+  ideaSend.disabled = true;
+  ideaSend.textContent = t('idea_sending');
+  let res;
+  try {
+    res = await api('/ideas', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, page: String(fd.get('page') || ''), contact: String(fd.get('contact') || '') }),
+    });
+  } catch (_) { res = { status: 0, body: {} }; }   // 离线：给通用错误，不静默丢
+  if (res.status === 200 && res.body.ok) {
+    ideaMsgShow(t('idea_thanks'), false);
+    ideaSend.textContent = t('idea_send');
+    setTimeout(ideaClose, 1200);
+    return;
+  }
+  ideaSend.disabled = false;
+  ideaSend.textContent = t('idea_send');
+  const key = 'idea_err_' + (res.body && res.body.error || 'generic');
+  const txt = t(key);
+  ideaMsgShow(txt === key ? t('idea_err_generic') : txt, true);
+});
 
 // —— 启动（v2.6.0：移到文件末尾，避免引导模块的 const 处于 TDZ）——
 applyStaticTexts();

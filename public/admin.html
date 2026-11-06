@@ -118,6 +118,7 @@ dialog#modal::backdrop { background: rgba(18,26,38,.45); }
       <button data-tab="flags" aria-pressed="false">Risk Flags</button>
       <button data-tab="ops" aria-pressed="false">Operations</button>
       <button data-tab="students" aria-pressed="false">Students</button>
+      <button data-tab="ideas" aria-pressed="false">Ideas</button>
       <button data-tab="settings" aria-pressed="false">Settings</button>
       <button data-tab="manage" aria-pressed="false">Manage</button>
     </div>
@@ -232,6 +233,19 @@ dialog#modal::backdrop { background: rgba(18,26,38,.45); }
 
         <div class="tablewrap"><div id="st_table"></div></div>
         <div class="pager" id="st_pager"></div>
+      </div>
+    </div>
+
+    <div id="tab-ideas" class="hidden">
+      <div class="card">
+        <div class="row">
+          <h3 style="flex:1">Ideas <span class="muted" id="ideaTotals"></span></h3>
+          <button class="small" data-idea-filter="all">All</button>
+          <button class="small" data-idea-filter="new">New</button>
+          <button class="small" data-idea-filter="seen">Seen</button>
+        </div>
+        <p class="muted">Submitted from the phone app. Contact is optional and only staff can see it.</p>
+        <div id="ideasAdmin" class="muted">Loading…</div>
       </div>
     </div>
 
@@ -351,7 +365,7 @@ async function enter() {
 $('#enter').addEventListener('click', enter);
 $('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
 
-const TABS = ['handouts', 'flags', 'ops', 'students', 'settings', 'manage'];
+const TABS = ['handouts', 'flags', 'ops', 'students', 'ideas', 'settings', 'manage'];
 $$('.tabs button').forEach((b) => b.addEventListener('click', () => {
   $$('.tabs button').forEach((x) => x.setAttribute('aria-pressed', 'false'));
   b.setAttribute('aria-pressed', 'true');
@@ -431,7 +445,7 @@ async function boot() {
   $('#gate').classList.add('hidden');
   $('#app').classList.remove('hidden');
   $('#logout').classList.remove('hidden');
-  await Promise.all([loadHandouts(), loadFlags(), loadOps(), loadSettings(), loadStudents(), loadManage()]);
+  await Promise.all([loadHandouts(), loadFlags(), loadOps(), loadSettings(), loadStudents(), loadIdeas(), loadManage()]);
 }
 
 /* ---------- Handouts ---------- */
@@ -498,6 +512,42 @@ async function loadFlags() {
     loadFlags(); loadManage();
   }));
 }
+
+/* ---------- Ideas（v2.7.0） ---------- */
+let ideaFilter = 'all';
+async function loadIdeas() {
+  const r = await api('/admin/ideas?status=' + encodeURIComponent(ideaFilter));
+  if (r.status !== 200) { $('#ideasAdmin').innerHTML = '<p class="muted">Unavailable</p>'; return; }
+  const list = r.body.ideas || [];
+  const c = r.body.counts || { new: 0, seen: 0 };
+  if ($('#ideaTotals')) $('#ideaTotals').textContent = '· ' + c.new + ' new / ' + c.seen + ' seen';
+  $('#ideasAdmin').innerHTML = list.length
+    ? '<div class="tablewrap"><table><tr><th style="min-width:280px">Idea</th><th>Where</th><th>Contact</th><th>When</th><th></th></tr>'
+      + list.map((i) =>
+        '<tr><td style="max-width:520px;white-space:pre-wrap">' + esc(i.message)
+        + (i.status === 'new' ? ' <span class="tag warn">new</span>' : '') + '</td>'
+        + '<td class="mono">' + esc(i.page || '—') + '</td>'
+        + '<td class="mono">' + esc(i.contact || '—') + '</td>'
+        + '<td class="mono muted">' + esc(String(i.created_at || '').slice(0, 16).replace('T', ' ')) + '</td>'
+        + '<td>' + (i.status === 'new' ? '<button class="small" data-idea-seen="' + i.id + '">Mark seen</button> ' : '')
+        + '<button class="small" data-idea-del="' + i.id + '">Delete</button></td></tr>').join('')
+      + '</table></div>'
+    : '<p class="muted">No ideas yet.</p>';
+  $$('#ideasAdmin [data-idea-seen]').forEach((b) => b.addEventListener('click', async () => {
+    const rr = await api('/admin/ideas/status', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.ideaSeen), status: 'seen' }) });
+    toast(rr.status === 200 ? 'Marked as seen' : 'Failed');
+    loadIdeas();
+  }));
+  $$('#ideasAdmin [data-idea-del]').forEach((b) => b.addEventListener('click', async () => {
+    const ok = await confirmModal('Delete this idea?',
+      'The suggestion is removed for everyone. This cannot be undone.', 'Delete idea');
+    if (!ok) return;
+    const rr = await api('/admin/ideas/delete', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.ideaDel) }) });
+    toast(rr.status === 200 ? 'Idea deleted' : 'Failed');
+    loadIdeas();
+  }));
+}
+$$('[data-idea-filter]').forEach((b) => b.addEventListener('click', () => { ideaFilter = b.dataset.ideaFilter; loadIdeas(); }));
 
 /* ---------- Operations ---------- */
 let rwEditId = null;

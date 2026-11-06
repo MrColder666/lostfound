@@ -41,7 +41,7 @@
 |---|---|---|
 | 手机网页（PWA） | `/` | 响应式 320–1366px；底部 Tab（Board / ＋Report / Shop）；≥1024px 显示左侧全局导航 |
 | 服务台一体机 | `/kiosk` | iPad 横屏锁定全屏；大按钮、无键盘输入负担；六态状态机 |
-| 后台 | `/admin` | 桌面优先、手机可用的单页控制台；口令 + 可选 Passkey 2FA；六个 Tab |
+| 后台 | `/admin` | 桌面优先、手机可用的单页控制台；口令 + 可选 Passkey 2FA；七个 Tab |
 
 > 补充：`/kiosk.html`、`/admin.html` 会被 307 重定向到无扩展名路径（Cloudflare 静态资源行为，浏览器无感）。
 
@@ -156,6 +156,7 @@ npx wrangler d1 execute lostfound --remote --file=./seed.sql          # 可选�
 npx wrangler d1 execute lostfound --remote --file=migrations/2026-10-24-v2.0.0.sql
 npx wrangler d1 execute lostfound --remote --file=migrations/2026-10-26-v2.2.0-photos.sql
 npx wrangler d1 execute lostfound --remote --file=migrations/2026-10-27-v2.4.0-initial-points.sql
+npx wrangler d1 execute lostfound --remote --file=migrations/2026-11-06-v2.7.0-ideas.sql
 ```
 
 **迁移文件（幂等，可重复执行）**
@@ -165,6 +166,7 @@ npx wrangler d1 execute lostfound --remote --file=migrations/2026-10-27-v2.4.0-i
 | `migrations/2026-10-24-v2.0.0.sql` | 8 个索引：identities(name/class/created_at)、items(registered_by,status)、claims(claimant_id,status)、redemptions(student_id,status)、redemptions(reward_id)、`idx_refund_once` 唯一索引 |
 | `migrations/2026-10-26-v2.2.0-photos.sql` | `photos` 表（BLOB 兜底） |
 | `migrations/2026-10-27-v2.4.0-initial-points.sql` | 给存量学生补 67 初始分（`reason='initial'`，幂等） |
+| `migrations/2026-11-06-v2.7.0-ideas.sql` | `ideas` 表 + `idx_ideas_status`（建议箱，v2.7.0） |
 | `migrations/demo-data-v2.0.0.sql` | 线上演示数据（可重复跑；会先删 `LF-2026-00xx/01xx` 的演示物品与 `ref_type='demo_seed'` 的流水） |
 
 ### 3.6 目录结构（重建时按此组织）
@@ -174,6 +176,7 @@ src/
   worker.js                 路由分发 + cron
   api/items.js              公开列表/详情/商城目录/照片/公告/统计/最近归还
   api/report.js             登记（一步分格）
+  api/ideas.js              建议箱提交（公开写 + IP 限流）
   api/claims.js             认领 + settleFreeze
   api/kiosk.js              身份查询、出库核销、积分结算
   api/points.js             积分查询、打赏、兑换（redeemCore 共用）
@@ -197,7 +200,7 @@ src/
 public/
   index.html                手机端外壳
   kiosk.html                Kiosk 六态
-  admin.html                后台单页（6 Tab，内联样式与脚本）
+  admin.html                后台单页（7 Tab，内联样式与脚本）
   css/tokens.css            设计 token 唯一来源
   css/app.css               主站样式（含动效层）
   css/kiosk.css             Kiosk 样式（不加动效）
@@ -212,7 +215,7 @@ public/
   icons/                    全尺寸 App Icon / maskable / monochrome / favicon
   ops/labels.html           A4 格位标签打印页
   ops/signage.html          A5 引导牌打印页（二维码指向 /r）
-  sw.js                     Service Worker（lf-v15）
+  sw.js                     Service Worker（lf-v16）
   manifest.webmanifest      PWA 清单
 schema.sql / seed.sql       初始化
 migrations/                 线上增量迁移
@@ -416,7 +419,19 @@ AGENTS.md                   给后续开发者的约定与已知坑
 | bytes | BLOB | 原始字节（服务端上限 1.1MB） |
 | created_at | TEXT 默认 now | |
 
-### 4.15 状态枚举速查
+### 4.15 ideas（建议箱，v2.7.0）
+
+| 列 | 类型 | 说明 |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | |
+| message | TEXT NOT NULL | 学生留言，服务端 trim 后 5–600 字符 |
+| page | TEXT 可空 | `board` / `report` / `rewards` / `kiosk` / `other` |
+| contact | TEXT 可空 | 学号或邮箱，2–120 字；仅后台可见 |
+| status | TEXT 默认 new | `new` / `seen` |
+| ip_hash | TEXT 可空 | 提交 IP 的 SHA-256，仅用于溯源，不展示 |
+| created_at | TEXT 默认 now | |
+
+### 4.16 状态枚举速查
 
 **items.status**：`registered`（刚插入、未分配格位，瞬时态）→ `in_stock`（在板上）→ `claim_pending`（历史态，当前不写）→ `ready`（预留给认领人）→ `returned`（已出库）；另有 `voided`（后台下架）、`expired`（历史态）。
 
@@ -678,6 +693,13 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 成功：`200 { ok, redemption_id, note }`
 失败：`400 BAD_STUDENT_ID | PIN_FORMAT`；`402 INSUFFICIENT_POINTS`；`403 NAME_MISMATCH | PIN_INCORRECT`；`404 IDENTITY_NOT_FOUND | REWARD_NOT_FOUND`；`409 OUT_OF_STOCK`；`429 TOO_MANY_PIN`。
 
+#### `POST /api/ideas`（JSON，公开）
+
+请求：`{ message, page?, contact? }`
+成功：`200 { ok, id }`
+失败：`400 BAD_BODY | EMPTY | TOO_SHORT | TOO_LONG | BAD_CONTACT`；`429 TOO_MANY`（同 IP 每小时 5 条）。
+说明：`message` 服务端折叠空白后长度 5–600；`page` ≤40 字符；`contact` 2–120 字（字母/数字/空格/`@._+-`）；`ip_hash` 只存 SHA-256。
+
 ### 6.6 后台接口（全部需要 `X-Admin-Token`）
 
 **鉴权模型**
@@ -689,6 +711,12 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 #### 风险黄标
 - `GET /api/admin/flags` → `{ ok, flags: [risk_flags 行] }`（未处理，≤50）
 - `POST /api/admin/flags/resolve` `{ id }` → `{ ok }`（置 resolved=1）
+
+#### 建议箱（v2.7.0）
+- `GET /api/admin/ideas?status=`（可选 `new|seen`，默认全部）→ `{ ok, ideas: [ {id, message, page, contact, status, created_at} ], counts: {new, seen} }`（新的在前，≤300）
+- `POST /api/admin/ideas/status` `{ id, status }` → `{ ok }`；`status` ∈ {`new`,`seen`}，否则 400 `BAD_FIELDS`；不存在 404 `NOT_FOUND`
+- `POST /api/admin/ideas/delete` `{ id }` → `{ ok }`；不存在 404 `NOT_FOUND`
+- 以上写操作均写 `admin_audit`（`idea_status` / `idea_delete`）
 
 #### 看板
 - `GET /api/admin/stats` → `{ ok, stats: { on_board, reserved, returned, active_claims } }`
@@ -833,7 +861,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 - **校徽即回家入口（v2.6.0）**：桌面 `a.gnav-logo[href="#/"]`、手机 `a.logo`。点击时若不在首页 → 回 `#/`；已在首页 → 平滑滚回顶部。
 - 底部 tabbar 中央 Report 按钮（v2.6.0）：**只显示「＋」**（54px 圆形），文案 `Report` 放在 `.fab-tip` 气泡里，默认隐形；`@media (hover:hover) and (pointer:fine)` 下悬停 **1 秒**淡入于按钮上方，移开即消失；`hover:none` 设备不显示气泡，无障碍靠 `aria-label="Report"`。
 - 正文使用 `<h1>` 语义：首页 hero、登记/商城/详情页各自有 page-title，后台标题。
-- **「加建议」入口（v2.6.4）**：桌面 `.gnav-idea`（侧栏最底部，`margin-top:auto` 钉底，悬停/`focus-visible` 浮出 `.idea-tip` 气泡）；手机 `.idea-chip`（顶栏 `#shopChip` 左侧 40px 圆钮，`hover:hover` 才有描边反馈）。两者均为 `<a target="_blank" rel="noopener noreferrer">`，指向 `https://github.com/MrColder666/lostfound/issues/new`，预填 `[Idea]` 标题与三段正文模板。仓库为公开仓库、Issues 已开启。
+- **「加建议」入口（v2.7.0）**：桌面 `.gnav-idea`（侧栏最底部，`margin-top:auto` 钉底，悬停/`focus-visible` 浮出 `.idea-tip` 气泡）；手机 `.idea-chip`（顶栏 `#shopChip` 左侧 40px 圆钮）。两者都是 `<button aria-haspopup="dialog">`，点击打开原生 `<dialog id="ideaDialog">` 表单（留言 textarea ≤600、页面下拉、可选联系方式），提交到站内 `POST /api/ideas`；成功显示「Thanks — we have it.」并在 1.2s 后自动关闭，Esc/✕/Cancel 关闭且焦点回到触发按钮。后台 Ideas 标签可查看、按 new/seen 过滤、标记已读、删除（二次确认）。
 
 ### 7.2 路由（hash 路由，无需服务端支持）
 
@@ -943,7 +971,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 ### 7.9 PWA 与 Service Worker
 
 - **manifest**：`id:"/"`、name/short_name、description、`start_url:"/"`、`scope:"/"`、`display:"standalone"` + `display_override:["standalone","minimal-ui"]`、背景 `#F2F6FB`、主题 `#005EBB`、`lang:"en"`、`orientation:"any"`、categories、icons（16–512 + maskable192/512 + monochrome）、shortcuts（Report / Shop 两个，带 96px 图标）。
-- **SW**：缓存名 `lf-v15`；安装时 `skipWaiting()` + 尽力预缓存 SHELL（任一失败不阻断，`c.add(u).catch(()=>null)`）；激活时删旧缓存 + `clients.claim()`；fetch 策略：
+- **SW**：缓存名 `lf-v16`；安装时 `skipWaiting()` + 尽力预缓存 SHELL（任一失败不阻断，`c.add(u).catch(()=>null)`）；激活时删旧缓存 + `clients.claim()`；fetch 策略：
   - `/api/*` 直接放行（不缓存个人数据）；
   - `woff2/png/jpg/jpeg/svg/ico` → 缓存优先；
   - 其它（HTML/JS/CSS）→ **网络优先，成功则回写缓存，失败回退缓存**。
@@ -1058,7 +1086,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 - 会话存放 `sessionStorage('lf_admin')`；任意请求返回 401 `NEED_2FA` 时自动登出（回到门屏并提示“Session expired — sign in again.”）。
 - 顶部栏：L&F Admin / STAFF CONSOLE / Sign out。
 
-### 9.2 六个 Tab 的功能矩阵
+### 9.2 七个 Tab 的功能矩阵
 
 #### Handouts（出库记录）
 | 操作 | 端点 | 说明 |
@@ -1074,6 +1102,13 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 | 列表 | `GET /admin/flags`（item 黄标显示 Dismiss + Put back 两个动作） |
 | Dismiss | `POST /admin/flags/resolve` |
 | Put back | `POST /admin/items/reopen`（非 returned 会 toast 失败原因） |
+
+#### Ideas（建议箱，v2.7.0）
+| 操作 | 端点 | 说明 |
+|---|---|---|
+| 列表 + 计数 | `GET /admin/ideas?status=` | 按 id 倒序；All / New / Seen 三个过滤按钮；行 = 留言、页面、联系方式、时间、`new` 徽章 |
+| Mark seen | `POST /admin/ideas/status` | 不可逆但无副作用，**不弹确认**，直接 toast |
+| Delete | `POST /admin/ideas/delete` | **二次确认弹层**：正文写明“留言将被移除、无法撤销”，按钮文案 `Delete idea` |
 
 #### Operations（运营）
 - **Dashboard**：On display / Reserved / Returned / Active claims 四个数字。
@@ -1301,7 +1336,7 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 4. 入场动画禁用 `animation-fill-mode: both` 的“尾帧 transform:none”写法会压住 hover；用 `backwards`（或做完把类摘掉）。
 5. `.will-reveal` 必须在动画结束后移除，否则同样压住 hover；兜底定时器也要走 `reveal()`。
 6. Kiosk 每个按钮都要显式绑事件（`#repTo3` 曾是从未绑定的死按钮）。
-7. 改 `public/` 静态资源必须 bump SW `CACHE`（当前 `lf-v15`）；虽然 fetch 是网络优先，但离线/旧客户端仍靠缓存。
+7. 改 `public/` 静态资源必须 bump SW `CACHE`（当前 `lf-v16`）；虽然 fetch 是网络优先，但离线/旧客户端仍靠缓存。
 8. 照片一律走 `putPhoto/readPhoto`，**不要再直接 `env.PHOTOS.put`**（R2 未启用时会静默丢图）。
 9. 删大段 JS 前先 grep 区间内的函数调用（曾把 `paintQr()` 一起删掉 → 控制台报 `paintQr is not defined`）。
 10. 「代码里引用了 id」≠「页面上有这个元素」——商城曾从 `#s_pin` 取值但模板从未渲染它。
@@ -1378,12 +1413,14 @@ POST /api/kiosk/fulfill
 GET  /api/points/:sid
 POST /api/tips
 POST /api/redemptions
+POST /api/ideas
 GET  /api/rewards
 GET  /api/site
 GET  /api/stats
 GET  /api/reunited
 GET  /api/photos/*
 GET  /api/admin/flags                POST /api/admin/flags/resolve
+GET  /api/admin/ideas                POST /api/admin/ideas/status        POST /api/admin/ideas/delete
 GET  /api/admin/stats
 GET  /api/admin/handouts             POST /api/admin/points/revoke
 POST /api/admin/items/reopen         GET  /api/admin/items            POST /api/admin/items
@@ -1415,5 +1452,5 @@ POST /api/admin/webauthn/login-options      POST /api/admin/webauthn/login
 - [ ] Kiosk 六态 + 无照片路径 + 物品名/地点 Other + 二维码 + 无动效
 - [ ] 后台六 Tab + 学生库（导入/导出/批量/受保护删除）+ 订单闭环 + 2FA + 审计
 - [ ] 深色模式 6 个 token 覆盖、品牌实底文字用 `--color-on-brand`
-- [ ] SW `lf-v15` 策略正确（API 直通、图片缓存优先、其余网络优先）
+- [ ] SW `lf-v16` 策略正确（API 直通、图片缓存优先、其余网络优先）
 - [ ] `node --test --experimental-test-isolation=none tests/*.test.js` → 106 pass

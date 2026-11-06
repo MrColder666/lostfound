@@ -2,6 +2,20 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
+## [v2.7.0] - 2026-11-06
+
+### 新增
+- **站内「加建议」表单**：桌面侧栏 `Idea` 与手机顶栏 💡 圆钮改为按钮，点击打开原生 `<dialog>` 表单（想看到什么 / 哪个页面 / 可选联系方式），提交到新端点 `POST /api/ideas`；提交成功显示「Thanks — we have it.」并自动关闭。替换 v2.6.4 的 GitHub issue 外链（学生无需 GitHub 账号）。
+- 新表 `ideas`（message / page / contact / status / ip_hash / created_at）+ `idx_ideas_status`；迁移 `migrations/2026-11-06-v2.7.0-ideas.sql`（幂等，已同步 `schema.sql`）。
+- 公开接口 `POST /api/ideas`：JSON 提交，服务端 trim 空白、长度 5–600、联系方式 2–120 字白名单校验；同 IP 每小时 5 条限流（复用 `rate_events`，返回 `TOO_MANY`）。
+- **后台 Ideas 标签**（第七个 Tab）：列表（留言 / 页面 / 联系方式 / 时间 / new 徽章）、New/Seen/All 过滤、`Mark seen`、`Delete`（二次确认，动作化文案 `Delete idea`），所有写操作进审计日志；接口 `GET /api/admin/ideas`、`POST /api/admin/ideas/status`、`POST /api/admin/ideas/delete`。
+- `applyStaticTexts()` 支持 `data-i18n-ph` 占位符（与 kiosk 对齐）；建议表单文案全部进 i18n。
+- 新增 `tests/ideas.test.js` 5 条 + 重写 `tests/idea-entry.test.js` 5 条，测试基线 111 → 117。
+- Service Worker 缓存升 `lf-v16`；`package.json` → 2.7.0。
+
+### 变更
+- 「加建议」入口不再外链 GitHub；`idea_tip` 文案改为 `Suggest an idea`。
+
 ## [v2.6.4] - 2026-11-05
 
 ### 新增

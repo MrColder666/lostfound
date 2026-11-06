@@ -24,16 +24,16 @@
   <a class="gnav-item" data-route="#/shop" href="#/shop">
     <span class="gnav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8.2" width="18" height="12.3" rx="2.2"/><path d="M3 12.4h18M12 8.2v12.3"/><path d="M12 8.2C10.3 4.9 6 5.2 6.8 7.6c.6 1.8 3.2 1.6 5.2.6Z"/><path d="M12 8.2c1.7-3.3 6-3 5.2-.6-.6 1.8-3.2 1.6-5.2.6Z"/></svg></span>
     <span data-i18n="shop_chip">Rewards</span></a>
-  <a class="gnav-item gnav-idea" id="ideaLink" href="https://github.com/MrColder666/lostfound/issues/new?title=%5BIdea%5D%20&amp;body=%2A%2AWhat%20would%20you%20like%20to%20see%3F%2A%2A%0A%0A%2A%2AWhich%20page%2C%20and%20on%20what%20device%3F%2A%2A%0A%0A%2A%2AAnything%20else%3F%2A%2A%0A" target="_blank" rel="noopener noreferrer" aria-label="Suggest an idea on GitHub">
+  <button type="button" class="gnav-item gnav-idea" id="ideaLink" aria-haspopup="dialog" aria-label="Suggest an idea">
     <span class="gnav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .9 1.6l.1.6h5.2l.1-.6c.1-.6.4-1.2.9-1.6A6 6 0 0 0 12 3Z"/></svg></span>
     <span data-i18n="idea_label">Idea</span>
-    <span class="idea-tip" aria-hidden="true" data-i18n="idea_tip">Suggest an idea on GitHub</span></a>
+    <span class="idea-tip" aria-hidden="true" data-i18n="idea_tip">Suggest an idea</span></button>
 </nav>
 <div class="shell">
   <header class="topbar">
     <a class="logo" href="#/"><img src="/icons/smic-logo.png" alt=""><small data-i18n="brand_sub">Lost &amp; Found</small></a>
     <span class="spacer"></span>
-    <a id="ideaChip" class="idea-chip" href="https://github.com/MrColder666/lostfound/issues/new?title=%5BIdea%5D%20&amp;body=%2A%2AWhat%20would%20you%20like%20to%20see%3F%2A%2A%0A%0A%2A%2AWhich%20page%2C%20and%20on%20what%20device%3F%2A%2A%0A%0A%2A%2AAnything%20else%3F%2A%2A%0A" target="_blank" rel="noopener noreferrer" aria-label="Suggest an idea on GitHub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .9 1.6l.1.6h5.2l.1-.6c.1-.6.4-1.2.9-1.6A6 6 0 0 0 12 3Z"/></svg></a>
+    <button type="button" id="ideaChip" class="idea-chip" aria-haspopup="dialog" aria-label="Suggest an idea"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .9 1.6l.1.6h5.2l.1-.6c.1-.6.4-1.2.9-1.6A6 6 0 0 0 12 3Z"/></svg></button>
     <a id="shopChip" href="#/shop" data-i18n="shop_chip">Shop</a>
   </header>
   <main id="view"></main>
@@ -51,5 +51,40 @@
   <button class="fab" data-route="#/report" type="button" aria-label="Report"><span class="fab-plus" aria-hidden="true">＋</span><span class="fab-tip" aria-hidden="true" data-i18n="tab_report">Report</span></button>
   <button data-route="#/shop" data-i18n="shop_chip" type="button">Shop</button>
 </nav>
+<dialog id="ideaDialog" class="idea-dialog" aria-labelledby="ideaTitle">
+  <form id="ideaForm" novalidate>
+    <div class="idea-head">
+      <h2 id="ideaTitle" data-i18n="idea_title">Suggest an idea</h2>
+      <button type="button" class="idea-close" id="ideaClose" aria-label="Close">✕</button>
+    </div>
+    <p class="idea-sub" data-i18n="idea_sub">Tell us what would make the board better. We read every one.</p>
+    <div>
+      <label class="idea-label" for="ideaText" data-i18n="idea_q">What would you like to see?</label>
+      <textarea id="ideaText" name="message" rows="4" maxlength="600" required data-i18n-ph="idea_ph" placeholder="A new feature, a fix, anything that gets in the way…"></textarea>
+    </div>
+    <div class="idea-grid">
+      <div>
+        <label class="idea-label" for="ideaPage" data-i18n="idea_page_q">Where?</label>
+        <select id="ideaPage" name="page">
+          <option value="" data-i18n="idea_page_any">Anywhere / not sure</option>
+          <option value="board" data-i18n="idea_page_board">The board</option>
+          <option value="report" data-i18n="idea_page_report">Reporting</option>
+          <option value="rewards" data-i18n="idea_page_rewards">Rewards</option>
+          <option value="kiosk" data-i18n="idea_page_kiosk">Service desk</option>
+          <option value="other" data-i18n="idea_page_other">Something else</option>
+        </select>
+      </div>
+      <div>
+        <label class="idea-label" for="ideaContact" data-i18n="idea_contact_q">Contact (optional)</label>
+        <input id="ideaContact" name="contact" maxlength="120" data-i18n-ph="idea_contact_ph" placeholder="Student ID or email, if you want a reply">
+      </div>
+    </div>
+    <p class="idea-msg" id="ideaMsg" role="status" aria-live="polite"></p>
+    <div class="idea-actions">
+      <button type="button" class="btn btn-ghost" id="ideaCancel" data-i18n="idea_cancel">Cancel</button>
+      <button type="submit" class="btn btn-primary" id="ideaSend" data-i18n="idea_send">Send idea</button>
+    </div>
+  </form>
+</dialog>
 <script type="module" src="/js/app.js"></script>
 </body></html>

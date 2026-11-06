@@ -1,7 +1,7 @@
 # AGENTS.md — L&F 校园失物招领系统
 
 > 面向后续接手这个仓库的 AI agent / 开发者。**改任何东西前先读完 §6 已知坑。**
-> 最后更新：2026-11-05 · 版本 v2.6.4
+> 最后更新：2026-11-06 · 版本 v2.7.0
 
 ---
 
@@ -70,7 +70,7 @@ public/
   icons/                 全尺寸 App Icon / maskable / maskable / favicon
   sw.js                  Service Worker（网络优先 + 缓存兜底）
 schema.sql / seed.sql    本地初始化；migrations/ 放线上迁移
-tests/                   node:test 用例（111 个）
+tests/                   node:test 用例（117 个）
 ```
 
 ---
@@ -142,7 +142,7 @@ tests/                   node:test 用例（111 个）
 ## 7. 测试与验收
 
 ```bash
-node --test --experimental-test-isolation=none tests/*.test.js   # 基线：111 pass / 0 fail
+node --test --experimental-test-isolation=none tests/*.test.js   # 基线：117 pass / 0 fail
 ```
 
 必须带 `--experimental-test-isolation=none`：默认派生模式在部分环境会「假绿灯」。
@@ -161,7 +161,7 @@ node --test --experimental-test-isolation=none tests/*.test.js   # 基线：111 
 ## 8. 版本与文档协议
 
 - **每次改动必须 bump 版本**：`package.json` 的 `version` + `CHANGELOG.md` 追加条目（Keep a Changelog 风格，中文）
-- 当前版本 **2.6.4**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
+- 当前版本 **2.7.0**；语义：修复 → patch，新增 → minor，架构/数据迁移 → major
 - 线上验证：`curl https://lostnfound.ominx.dpdns.org/api/stats` 应返回 `{"ok":true,...}`
 - 有 DB 变更时记得两处：本地 `--local --file=schema.sql`，线上 `--remote --file=migrations/<日期>-v<版本>-<主题>.sql`
 

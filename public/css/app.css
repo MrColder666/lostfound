@@ -553,3 +553,47 @@ input.visually-hidden { padding: 0; margin: -1px; border: 0; min-width: 0; min-h
   }
   .gnav-idea:hover .idea-tip, .gnav-idea:focus-visible .idea-tip { opacity: 1; transform: translateY(-50%) translateX(0); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v2.7.0 · 建议箱：入口改成按钮 + 原生 <dialog> 表单（提交到站内 /api/ideas）
+   ═══════════════════════════════════════════════════════════════════════ */
+/* 入口是 <button>：抹掉按钮默认外观，保持与 .gnav-item 一致 */
+.gnav-idea { border: 0; background: transparent; cursor: pointer; font-family: var(--font-ui); width: 100%; }
+.idea-chip { padding: 0; cursor: pointer; font-family: var(--font-ui); }
+
+.idea-dialog {
+  position: fixed; inset: 0; margin: auto;
+  border: 0; padding: 0; width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px); overflow: auto;
+  border-radius: 18px; background: var(--color-surface); color: var(--color-ink);
+  box-shadow: 0 24px 60px rgba(6, 12, 20, .3);
+}
+.idea-dialog::backdrop { background: rgba(6, 12, 20, .45); }
+.idea-dialog form { display: grid; gap: 8px; padding: 20px; }
+.idea-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.idea-head h2 { margin: 0; font: 800 20px/1.2 var(--font-ui); color: var(--color-navy); }
+.idea-close {
+  border: 0; background: transparent; color: var(--color-muted); cursor: pointer;
+  font: 600 16px/1 var(--font-ui); padding: 8px; border-radius: 10px;
+}
+.idea-close:hover { background: var(--color-cyan-soft); color: var(--color-navy); }
+.idea-sub { margin: -2px 0 6px; font: 400 13px/1.5 var(--font-ui); color: var(--color-muted); }
+.idea-label { display: block; margin-bottom: 4px; font: 700 12px var(--font-ui); color: var(--color-muted); }
+.idea-dialog textarea, .idea-dialog input, .idea-dialog select {
+  width: 100%; box-sizing: border-box; padding: 10px 12px;
+  font: 400 14px/1.5 var(--font-ui); color: var(--color-ink);
+  background: var(--color-surface); border: 1px solid var(--color-rule); border-radius: 10px;
+}
+.idea-dialog textarea { min-height: 96px; resize: vertical; }
+.idea-dialog textarea:focus, .idea-dialog input:focus, .idea-dialog select:focus {
+  outline: none; border-color: var(--color-accent); box-shadow: var(--focus-ring);
+}
+.idea-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.idea-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.idea-msg { min-height: 18px; margin: 0; font: 600 13px var(--font-ui); color: var(--color-muted); }
+.idea-msg.err { color: var(--color-danger); }
+@media (max-width: 480px) {
+  .idea-grid { grid-template-columns: 1fr; }
+  .idea-dialog form { padding: 16px; }
+  .idea-actions .btn { flex: 1; }
+}

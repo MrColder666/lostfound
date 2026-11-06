@@ -123,3 +123,15 @@ CREATE TABLE IF NOT EXISTS photos (
   bytes BLOB NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- —— v2.7.0 「加建议」建议箱（与 migrations/2026-11-06-v2.7.0-ideas.sql 保持一致）
+CREATE TABLE IF NOT EXISTS ideas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message TEXT NOT NULL,
+  page TEXT,                                  -- 可选：board / report / rewards / kiosk / other
+  contact TEXT,                               -- 可选：学号或邮箱
+  status TEXT NOT NULL DEFAULT 'new',         -- new | seen
+  ip_hash TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ideas_status ON ideas(status, id DESC);
