@@ -433,7 +433,7 @@ AGENTS.md                   给后续开发者的约定与已知坑
 
 ### 4.16 状态枚举速查
 
-**items.status**：`registered`（刚插入、未分配格位，瞬时态）→ `in_stock`（在板上）→ `claim_pending`（历史态，当前不写）→ `ready`（预留给认领人）→ `returned`（已出库）；另有 `voided`（后台下架）、`expired`（历史态）。
+**items.status**：`registered`（刚插入、未分配格位，瞬时态）→ `in_stock`（在板上）→ `claim_pending`（历史态，当前不写）→ `ready`（预留给认领人）→ `returned`（已出库）；另有 `voided`（后台下架）、`expired`（历史态）、**`archived`（v2.8.0 归档：全站与默认列表不可见，`prev_status` 记住原状态，可还原）**。
 
 **claims.status**：`pending`（历史）→ `in_review`（历史）/ `approved`（历史）/ `auto_approved`（**当前唯一入口**）→ `fulfilled`；另有 `rejected`（历史）、`expired`（超时释放）。
 
@@ -1134,8 +1134,21 @@ Content-Type 两种：`multipart/form-data`（`claim_id, student_id, name, pin, 
 - **Security · Two-factor（Passkey）**：状态行（开启/关闭 + 已注册数量）；按钮 **Register this device (Touch ID / Face ID)**；说明“开启后光口令进不来；设备丢失需 Cloudflare 层重置”。
 
 #### Manage（管理）
-- **Items**：搜索（码/标题）+ 状态筛选（All/in_stock/ready/registered/returned/voided）；每行 = 标题、码、格位、分类、地点、状态徽章、拾获者；操作 Edit（标题/分类/地点/格位，保存时格位冲突 409 “That slot is taken”）、Void（回 `voided`，可从板上撤下）、Restore（`voided → in_stock`）；**Void/Restore 不弹确认**（可逆）。
+- **Items**：搜索（码/标题）+ 状态筛选（All/in_stock/ready/registered/returned/voided/**archived**）；每行 = 标题、码、格位、分类、地点、状态徽章、拾获者。
+  - 操作：Edit（标题/分类/地点/格位，保存时格位冲突 409 “That slot is taken”）、**Archive**（→ `archived`，`prev_status` 记原状态；全站与默认列表消失，**不弹确认**，可逆）、Void（→ `voided`）、Restore（`archived → prev_status` 或 `voided → in_stock`）。
+  - **Delete（v2.8.0）**：只对 `archived` 生效（在架物品返回 409 `NOT_ARCHIVED`）；二次确认后**永久删除**物品并级联其认领、照片（含认领证据照）、物品/认领级风险标记；`points_ledger` 不动（无外键，历史得分保留）。审计 `item_delete`。
 - **Audit log**：最近 30 条（#id / action / target / detail / 时间）；提供 **Export ledger CSV**（`GET /admin/ledger`）。
+
+### 9.2.1 学生删除（v2.8.0 重写）
+
+- `GET /api/admin/students/refs?student_id=` 返回引用计数（items / claims / ledger / redemptions）、`blocked`、`can_force`。
+- **普通删除**：零引用才允许（`deleteStudentIfClean`），初始 67 分不计入引用。
+- **强制删除（保留物品）**：`POST /api/admin/students/delete {student_id, force:true}`；前端弹一次确认（列出引用数量与后果），确认后：
+  1. 确保系统身份 `0000000 / Former student / —` 存在；
+  2. 删除该生的认领（`claims.claimant_id`）与其 claim 级风险标记；
+  3. **把 ta 报过的物品 `registered_by` 改为 `0000000`**（物品、格位、状态、码全部不变，认领人不变）；
+  4. 删除积分流水、兑换单、身份行（PIN 一并消失）。
+- 审计：`student_delete_force`，detail 记 `kept_items:…:deleted_claims:…`；返回值带 `kept_items` 供前端提示。
 
 ### 9.3 弹层与危险操作规范（v2.4）
 

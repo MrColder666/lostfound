@@ -286,7 +286,7 @@ dialog#modal::backdrop { background: rgba(18,26,38,.45); }
         <div class="row">
           <input id="it_q" placeholder="Search code / title" style="width:220px">
           <select id="it_status">
-            <option value="">All statuses</option><option>in_stock</option><option>ready</option><option>registered</option><option>returned</option><option>voided</option>
+            <option value="">All statuses</option><option>in_stock</option><option>ready</option><option>registered</option><option>returned</option><option>voided</option><option>archived</option>
           </select>
           <button id="it_search" class="small">Search</button>
         </div>
@@ -913,12 +913,14 @@ $('#st_table').addEventListener('click', async (e) => {
     if (refs.status !== 200) { toast(errText(refs, 'Could not check this student.')); loadStudents(); return; }
     if (refs.body.blocked) {
       const name = refs.body.name ? esc(refs.body.name) + ' (' + esc(sid) + ')' : esc(sid);
-      await showModal({
-        title: 'Cannot delete this student',
-        body: '<p><b>' + name + '</b> is still attached to records, so deleting would leave them without an owner:</p>'
-          + '<ul class="modal-list">' + refList(refs.body.refs) + '</ul>'
-          + '<p class="muted">Clear those records first, then come back and delete the student.</p>',
-      });
+      const okForce = await confirmModal('Delete ' + sid + ' anyway?',
+        '<p><b>' + name + '</b> still has records:</p><ul class="modal-list">' + refList(refs.body.refs) + '</ul>'
+        + '<p>Their <b>items stay on the board</b> and are marked as <b>Former student</b>; claims, points and orders are deleted.</p>'
+        + '<p class="muted">This cannot be undone.</p>', 'Delete anyway');
+      if (!okForce) { loadStudents(); return; }
+      const delForce = await api('/admin/students/delete', { method: 'POST', body: JSON.stringify({ student_id: sid, force: true }) });
+      if (delForce.status === 200) toast('Deleted · kept ' + (delForce.body.kept_items || 0) + ' item(s) as Former student');
+      else toast(errText(delForce, 'Could not delete this student.'));
       loadStudents();
       return;
     }
@@ -1148,6 +1150,10 @@ function renderItems(list) {
     + '<td><span class="tag">' + esc(i.status) + '</span></td>'
     + '<td class="muted">' + esc(i.finder_name || i.registered_by) + '</td>'
     + '<td><button class="small" data-edit-item="' + i.id + '">Edit</button>'
+    + (i.status === 'archived'
+        ? ' <button class="small" data-unarchive-item="' + i.id + '">Restore</button>'
+          + ' <button class="small danger" data-delete-item="' + i.id + '">Delete</button>'
+        : ' <button class="small" data-archive-item="' + i.id + '">Archive</button>')
     + (['in_stock', 'registered', 'claim_pending'].includes(i.status) ? ' <button class="small danger" data-void-item="' + i.id + '">Void</button>' : '')
     + (i.status === 'voided' ? ' <button class="small" data-restore-item="' + i.id + '">Restore</button>' : '')
     + '</td></tr>').join('') + '</table>' : '<p class="muted">No items.</p>';
@@ -1169,6 +1175,29 @@ function renderItems(list) {
       toast(rr.status === 200 ? 'Saved' : rr.body.error === 'SLOT_TAKEN' ? 'That slot is taken' : 'Failed');
       loadManage();
     });
+  }));
+  $$('#itemsAdmin [data-archive-item]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    const rr = await api('/admin/items/archive', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.archiveItem) }) });
+    toast(rr.status === 200 ? 'Archived — hidden from the board and lists' : 'Could not archive that item.');
+    loadManage();
+  }));
+  $$('#itemsAdmin [data-unarchive-item]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    const rr = await api('/admin/items/unarchive', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.unarchiveItem) }) });
+    toast(rr.status === 200 ? 'Restored as ' + rr.body.status : 'Could not restore that item.');
+    loadManage();
+  }));
+  $$('#itemsAdmin [data-delete-item]').forEach((b) => b.addEventListener('click', async () => {
+    const it = list.find((x) => x.id === Number(b.dataset.deleteItem));
+    const ok = await confirmModal('Delete ' + (it ? it.code : 'this item') + ' for good?',
+      '<p>This removes the item <b>and its claims, photos and flags</b>. Points already awarded stay in the ledger.</p>'
+      + '<p class="muted">This cannot be undone.</p>', 'Delete permanently');
+    if (!ok) return;
+    b.disabled = true;
+    const rr = await api('/admin/items/delete', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.deleteItem) }) });
+    toast(rr.status === 200 ? 'Deleted · ' + rr.body.deleted.claims + ' claim(s), ' + rr.body.deleted.photos + ' photo(s)' : errText(rr, 'Could not delete that item.'));
+    loadManage();
   }));
   $$('#itemsAdmin [data-void-item]').forEach((b) => b.addEventListener('click', async () => {
     const rr = await api('/admin/items', { method: 'POST', body: JSON.stringify({ id: Number(b.dataset.voidItem), status: 'voided' }) });

@@ -2,11 +2,16 @@
 
 所有对 L&F 项目的变更都会记录在此。格式参考「Keep a Changelog」，版本号递增遵循项目版本管理协议。
 
-## [v2.7.1] - 2026-11-06
+## [v2.8.0] - 2026-11-11
 
 ### 新增
-- 站点根目录新增腾讯/微信域名所有权验证文件 `915855e79be73bd778ba05d3b924cfee.txt`，内容为 40 位 token `b6d37cb0da329eb4b0ebb27a58dfb8bd93b656f5`；用于微信审核/JS 安全域名验证，不参与路由与缓存逻辑。
-- Service Worker 缓存升 `lf-v17`；`package.json` → 2.7.1。
+- **物品归档 / 永久删除**（后台 Manage → Items）：`Archive` 把物品移出全站与默认列表（状态 `archived`，记住原状态 `prev_status`），`Restore` 还原；归档区里提供 `Delete` 永久删除 —— 事务内级联清理该物品的认领、照片（含认领证据照）与风险标记，**积分流水保留**（账本无外键，历史得分不丢）。在架物品不允许直接删除（409 `NOT_ARCHIVED`）。
+- **学生强制删除**（保留物品）：有引用时不再只能干瞪眼 —— 弹窗确认即可删除，删除其认领、积分、兑换单与身份；**ta 报过的物品保留在板上**，转给系统身份 `0000000 Former student`（`registered_by`），物品码、格位、状态不变。
+- 迁移 `migrations/2026-11-11-v2.8.0-item-archive.sql`（`items.prev_status`）；测试新增 `tests/admin-destructive.test.js`（5 例）。
+
+### 变更
+- 后台物品列表默认排除 `archived`，状态筛选新增 `archived`。
+- Service Worker 缓存升 `lf-v17`；`package.json` → 2.8.0。
 
 ## [v2.7.0] - 2026-11-06
 

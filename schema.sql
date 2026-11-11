@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS items (
   slot_no INTEGER,                        -- confirm-drop 时才写入
   drop_code TEXT,                         -- 已废弃（v1.3.0 起不再使用，保列不删）
   drop_expires_at TEXT,                   -- 已废弃（同上）
-  status TEXT NOT NULL DEFAULT 'registered', -- registered|voided|in_stock|claim_pending|ready|returned|expired
+  status TEXT NOT NULL DEFAULT 'registered', -- registered|voided|in_stock|claim_pending|ready|returned|expired|archived
+  prev_status TEXT,                       -- v2.8.0：归档前的状态，恢复时用
   registered_by TEXT NOT NULL REFERENCES identities(student_id),
   registered_via TEXT NOT NULL,           -- phone|kiosk
   found_at TEXT NOT NULL,

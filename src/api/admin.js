@@ -82,6 +82,31 @@ async function deleteStudentIfClean(db, sid) {
   return { status: 'deleted' };
 }
 
+// —— v2.8.0：强制删除学生（保留其报过的物品，转给匿名身份）——
+const ANON_ID = '0000000';
+async function ensureAnonymous(db) {
+  await db.prepare("INSERT OR IGNORE INTO identities(student_id,name,class,created_at,pin_hash) VALUES (?,?,?,datetime('now'),NULL)")
+    .bind(ANON_ID, 'Former student', '—').run();
+}
+async function forceDeleteStudent(db, sid) {
+  const refs = await studentRefCounts(db, sid);
+  const claims = await db.prepare('SELECT id FROM claims WHERE claimant_id=?').bind(sid).all();
+  const items = await db.prepare('SELECT id FROM items WHERE registered_by=?').bind(sid).all();
+  await ensureAnonymous(db);
+  const stmts = [
+    db.prepare('DELETE FROM claims WHERE claimant_id=?').bind(sid),
+    db.prepare('UPDATE items SET registered_by=?, updated_at=datetime(\'now\') WHERE registered_by=?').bind(ANON_ID, sid),
+    db.prepare('DELETE FROM points_ledger WHERE student_id=?').bind(sid),
+    db.prepare('DELETE FROM redemptions WHERE student_id=?').bind(sid),
+    db.prepare('DELETE FROM identities WHERE student_id=?').bind(sid),
+  ];
+  for (const c of claims.results) {
+    stmts.push(db.prepare("DELETE FROM risk_flags WHERE subject_type='claim' AND subject_id=?").bind(String(c.id)));
+  }
+  await db.batch(stmts);
+  return { status: 'deleted', kept_items: items.results.length, deleted_claims: claims.results.length, refs };
+}
+
 const STUDENT_LIST_SQL = `
   SELECT s.student_id, s.name, s.class, s.created_at,
     (s.pin_hash IS NOT NULL) AS has_pin,
@@ -94,10 +119,12 @@ const STUDENT_LIST_SQL = `
        AND (c.pickup_expires_at IS NULL OR c.pickup_expires_at > ?)) AS active_claims,
     (SELECT COUNT(*) FROM redemptions r2 WHERE r2.student_id = s.student_id) AS orders
   FROM identities s
-  WHERE (? = '' OR s.student_id LIKE ? ESCAPE '\\' OR s.name LIKE ? ESCAPE '\\' OR s.class LIKE ? ESCAPE '\\')`;
+  WHERE s.student_id <> '0000000'   -- 系统身份（强删学生后接收物品）不出现在学生列表
+    AND (? = '' OR s.student_id LIKE ? ESCAPE '\\' OR s.name LIKE ? ESCAPE '\\' OR s.class LIKE ? ESCAPE '\\')`;
 
 const STUDENT_COUNT_SQL = `SELECT COUNT(*) AS total FROM identities s
-  WHERE (? = '' OR s.student_id LIKE ? ESCAPE '\\' OR s.name LIKE ? ESCAPE '\\' OR s.class LIKE ? ESCAPE '\\')`;
+  WHERE s.student_id <> '0000000'   -- 系统身份（强删学生后接收物品）不出现在学生列表
+    AND (? = '' OR s.student_id LIKE ? ESCAPE '\\' OR s.name LIKE ? ESCAPE '\\' OR s.class LIKE ? ESCAPE '\\')`;
 export async function admin(db, env, req, token) {
   token = token || req.headers.get('X-Admin-Token');
   const url = new URL(req.url);
@@ -433,7 +460,7 @@ export async function admin(db, env, req, token) {
     const found = await readStudent(db, sid);
     if (!found) return json({ ok: false, error: 'NOT_FOUND' }, 404);
     const decision = deleteDecision(await studentRefCounts(db, sid));
-    return json({ ok: true, student_id: sid, name: found.name, class: found.class, refs: decision.refs, blocked: decision.blocked, summary: describeRefs(decision.entries) });
+    return json({ ok: true, student_id: sid, name: found.name, class: found.class, refs: decision.refs, blocked: decision.blocked, can_force: true, summary: describeRefs(decision.entries) });
   }
   // 新建学生（可选直设 PIN）
   if (req.method === 'POST' && url.pathname === '/api/admin/students') {
@@ -480,17 +507,20 @@ export async function admin(db, env, req, token) {
   }
   // 受保护删除：任何引用存在就 409 并报各类条数；批量逐条返回
   if (req.method === 'POST' && url.pathname === '/api/admin/students/delete') {
-    const ids = normalizeIdList(await readBody());
+    const body = await readBody();
+    const ids = normalizeIdList(body);
     if (!ids) return json({ ok: false, error: 'BAD_FIELDS' }, 400);
+    const force = body.force === true;
     if (ids.length === 1) {
       const sid = ids[0];
       if (!(await readStudent(db, sid))) return json({ ok: false, error: 'NOT_FOUND' }, 404);
-      const outcome = await deleteStudentIfClean(db, sid);
+      const outcome = force ? await forceDeleteStudent(db, sid) : await deleteStudentIfClean(db, sid);
       if (outcome.status === 'blocked') {
-        return json({ ok: false, error: 'STUDENT_IN_USE', refs: outcome.refs, summary: outcome.summary }, 409);
+        return json({ ok: false, error: 'STUDENT_IN_USE', refs: outcome.refs, summary: outcome.summary, can_force: true }, 409);
       }
-      await audit('student_delete', sid);
-      return json({ ok: true, student_id: sid, deleted: true });
+      await audit(force ? 'student_delete_force' : 'student_delete', sid,
+        force ? `kept_items:${outcome.kept_items}:deleted_claims:${outcome.deleted_claims}` : '');
+      return json({ ok: true, student_id: sid, deleted: true, kept_items: outcome.kept_items || 0 });
     }
     const results = [];
     for (const sid of ids) {
@@ -623,6 +653,58 @@ export async function admin(db, env, req, token) {
     return json({ ok: true, settings: await getSettings(db) });
   }
   // —— 物品管理：全状态列表 + 编辑/下架 ——
+  // —— v2.8.0：物品归档（隐藏可恢复）/ 恢复 / 永久删除 ——
+  if (req.method === 'POST' && url.pathname === '/api/admin/items/archive') {
+    const b = await readBody();
+    const id = Number(b.id);
+    if (!Number.isInteger(id)) return json({ ok: false, error: 'BAD_ID' }, 400);
+    const it = await db.prepare('SELECT id, status FROM items WHERE id=?').bind(id).first();
+    if (!it) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+    if (it.status === 'archived') return json({ ok: true, already: true });
+    await db.prepare("UPDATE items SET prev_status=?, status='archived', updated_at=datetime('now') WHERE id=?")
+      .bind(it.status, id).run();
+    await audit('item_archive', `item:${id}`, `from:${it.status}`);
+    return json({ ok: true, archived: true, from: it.status });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/admin/items/unarchive') {
+    const b = await readBody();
+    const id = Number(b.id);
+    if (!Number.isInteger(id)) return json({ ok: false, error: 'BAD_ID' }, 400);
+    const it = await db.prepare('SELECT id, status, prev_status, slot_no FROM items WHERE id=?').bind(id).first();
+    if (!it) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+    if (it.status !== 'archived') return json({ ok: false, error: 'NOT_ARCHIVED' }, 409);
+    const valid = ['registered', 'voided', 'in_stock', 'claim_pending', 'ready', 'returned', 'expired'];
+    const restore = valid.includes(it.prev_status) ? it.prev_status : (it.slot_no ? 'in_stock' : 'registered');
+    await db.prepare("UPDATE items SET status=?, prev_status=NULL, updated_at=datetime('now') WHERE id=?")
+      .bind(restore, id).run();
+    await audit('item_unarchive', `item:${id}`, `to:${restore}`);
+    return json({ ok: true, status: restore });
+  }
+  if (req.method === 'POST' && url.pathname === '/api/admin/items/delete') {
+    const b = await readBody();
+    const id = Number(b.id);
+    if (!Number.isInteger(id)) return json({ ok: false, error: 'BAD_ID' }, 400);
+    const it = await db.prepare('SELECT * FROM items WHERE id=?').bind(id).first();
+    if (!it) return json({ ok: false, error: 'NOT_FOUND' }, 404);
+    // 只允许删除已归档的物品，防止误删在架物品
+    if (it.status !== 'archived') return json({ ok: false, error: 'NOT_ARCHIVED' }, 409);
+    const claims = await db.prepare('SELECT id, evidence_photo_path FROM claims WHERE item_id=?').bind(id).all();
+    const claimIds = claims.results.map((c) => c.id);
+    const paths = [it.photo_path, it.detail_photo_path, ...claims.results.map((c) => c.evidence_photo_path)]
+      .filter(Boolean);
+    const stmts = [
+      db.prepare('DELETE FROM claims WHERE item_id=?').bind(id),
+      db.prepare("DELETE FROM risk_flags WHERE subject_type='item' AND subject_id=?").bind(String(id)),
+      db.prepare('DELETE FROM items WHERE id=?').bind(id),
+    ];
+    for (const cid of claimIds) {
+      stmts.push(db.prepare("DELETE FROM risk_flags WHERE subject_type='claim' AND subject_id=?").bind(String(cid)));
+    }
+    for (const path of paths) stmts.push(db.prepare('DELETE FROM photos WHERE path=?').bind(path));
+    await db.batch(stmts);
+    await audit('item_delete', `item:${id}:${it.code}`, `claims:${claimIds.length}:photos:${paths.length}`);
+    return json({ ok: true, deleted: { item: 1, claims: claimIds.length, photos: paths.length } });
+  }
   if (req.method === 'GET' && url.pathname === '/api/admin/items') {
     const q = (url.searchParams.get('q') || '').trim();
     const status = (url.searchParams.get('status') || '').trim();
@@ -631,7 +713,8 @@ export async function admin(db, env, req, token) {
         i.photo_path, i.created_at, i.registered_by, id2.name AS finder_name, id2.class AS finder_class
       FROM items i LEFT JOIN identities id2 ON id2.student_id=i.registered_by
       WHERE (? = '' OR i.code LIKE ? OR i.title LIKE ?) AND (? = '' OR i.status = ?)
-      ORDER BY i.id DESC LIMIT 100`).bind(q, like, like, status, status).all();
+        AND (? <> '' OR i.status <> 'archived')
+      ORDER BY i.id DESC LIMIT 100`).bind(q, like, like, status, status, status).all();
     return json({ ok: true, items: rows.results });
   }
   if (req.method === 'POST' && url.pathname === '/api/admin/items') {
